@@ -61,21 +61,24 @@ export default function SignupPage() {
 
             if (authError) throw authError;
 
-            // 2. Salvar dados adicionais na tabela users
+            // 2. Salvar dados adicionais na tabela users (Via Server Action no DigitalOcean)
             if (authData.user) {
-                const { error: insertError } = await supabase
-                    .from('users')
-                    .insert([
-                        {
-                            id: authData.user.id,
-                            email: formData.email,
-                            name: formData.name,
-                            phone: formData.phone,
-                            age: parseInt(formData.age) || null,
-                        },
-                    ]);
+                // Import dinâmico da action para evitar erros de render no cliente se não for 'use server' explicitamente no arquivo
+                const { createUserProfile } = await import('@/app/actions/auth');
 
-                if (insertError) throw insertError;
+                const result = await createUserProfile({
+                    id: authData.user.id,
+                    email: formData.email,
+                    name: formData.name,
+                    phone: formData.phone,
+                    age: parseInt(formData.age) || undefined,
+                });
+
+                if (!result.success) {
+                    console.error('Erro ao salvar perfil:', result.error);
+                    // Não bloqueamos o fluxo, pois o usuário já foi criado no Auth.
+                    // Apenas logamos o erro. Idealmente mostraria um toast.
+                }
             }
 
             // Redirecionar para onboarding
