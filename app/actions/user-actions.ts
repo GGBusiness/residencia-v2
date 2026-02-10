@@ -5,11 +5,17 @@ import { getUserStats as getUserStatsService } from '@/lib/stats-service';
 
 export async function completeOnboardingAction(userId: string, data: OnboardingData) {
     try {
+        console.log(`[Action] Starting onboarding for user ${userId}`);
         const result = await userService.completeOnboarding(userId, data);
+        console.log(`[Action] Onboarding result: ${result}`);
         return { success: result };
-    } catch (error) {
-        console.error('Error in completeOnboardingAction:', error);
-        return { success: false, error: 'Failed to complete onboarding' };
+    } catch (error: any) {
+        console.error('❌ Error in completeOnboardingAction:', {
+            message: error.message,
+            stack: error.stack,
+            detail: error
+        });
+        return { success: false, error: `Falha no servidor: ${error.message}` };
     }
 }
 

@@ -18,6 +18,9 @@ if (!pool) {
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
   });
+  console.log('✅ [lib/db] Pool created with connection string:',
+    process.env.POSTGRES_URL ? 'DEFINED (POSTGRES_URL)' :
+      process.env.DIGITALOCEAN_DB_URL ? 'DEFINED (DO_URL)' : 'MISSING');
 }
 
 export const db = pool!;
