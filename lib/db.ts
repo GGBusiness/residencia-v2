@@ -8,19 +8,35 @@ if (!process.env.DIGITALOCEAN_DB_URL && process.env.NODE_ENV === 'production') {
 
 // Configuração do Pool de Conexões (Singleton)
 // Em serverless (Vercel), é importante gerenciar isso para não estourar conexões.
+const isDO = process.env.DIGITALOCEAN_DB_URL?.includes('ondigitalocean.com');
+
 if (!pool) {
+  console.log('🌐 [lib/db] Initializing connection pool...');
+  console.log('Environment:', process.env.NODE_ENV);
+  console.log('Database URL Source:',
+    process.env.DIGITALOCEAN_DB_URL ? 'DIGITALOCEAN_DB_URL' :
+      process.env.POSTGRES_URL ? 'POSTGRES_URL' :
+        process.env.DATABASE_URL ? 'DATABASE_URL' : 'NONE'
+  );
+
+  const connectionString = process.env.DIGITALOCEAN_DB_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL;
+
   pool = new Pool({
-    connectionString: process.env.DIGITALOCEAN_DB_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL,
+    connectionString,
     ssl: {
-      rejectUnauthorized: false
+      rejectUnauthorized: false,
     },
-    max: 10, // Limite de conexões simultâneas
+    max: 10,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000,
+    connectionTimeoutMillis: 10000,
   });
-  console.log('✅ [lib/db] Pool created with connection string:',
-    process.env.POSTGRES_URL ? 'DEFINED (POSTGRES_URL)' :
-      process.env.DIGITALOCEAN_DB_URL ? 'DEFINED (DO_URL)' : 'MISSING');
+
+  // Testar conexão imediatamente no startup do pool
+  pool.on('error', (err) => {
+    console.error('❌ [lib/db] Unexpected error on idle client:', err);
+  });
+
+  console.log('✅ [lib/db] Pool created with SSL rejectUnauthorized: false');
 }
 
 export const db = pool!;
