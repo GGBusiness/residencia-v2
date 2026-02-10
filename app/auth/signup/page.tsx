@@ -19,6 +19,7 @@ export default function SignupPage() {
         age: '',
         password: '',
         confirmPassword: '',
+        termsAccepted: false
     });
 
     const handleSignup = async (e: React.FormEvent) => {
@@ -225,13 +226,30 @@ export default function SignupPage() {
                             </div>
                         </div>
 
+                        {/* Termos de Uso */}
+                        <div className="flex items-start gap-3 my-4">
+                            <div className="flex items-center h-5">
+                                <input
+                                    id="terms"
+                                    type="checkbox"
+                                    checked={formData.termsAccepted}
+                                    onChange={(e) => setFormData({ ...formData, termsAccepted: e.target.checked })}
+                                    className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                                    required
+                                />
+                            </div>
+                            <label htmlFor="terms" className="text-sm text-gray-600 leading-tight">
+                                Eu li e concordo com os <Link href="#" className="text-primary-600 hover:text-primary-700 font-semibold">Termos de Uso</Link> e <Link href="#" className="text-primary-600 hover:text-primary-700 font-semibold">Política de Privacidade</Link>.
+                            </label>
+                        </div>
+
                         {/* Submit Button */}
                         <Button
                             type="submit"
                             variant="primary"
                             size="lg"
                             className="w-full"
-                            disabled={loading}
+                            disabled={loading || !formData.termsAccepted}
                         >
                             {loading ? 'Criando conta...' : 'Criar Conta'} 🚀
                         </Button>
