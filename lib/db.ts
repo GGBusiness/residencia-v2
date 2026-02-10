@@ -10,7 +10,7 @@ if (!process.env.DIGITALOCEAN_DB_URL && process.env.NODE_ENV === 'production') {
 // Em serverless (Vercel), é importante gerenciar isso para não estourar conexões.
 if (!pool) {
   pool = new Pool({
-    connectionString: process.env.DIGITALOCEAN_DB_URL,
+    connectionString: process.env.DIGITALOCEAN_DB_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL,
     ssl: {
       rejectUnauthorized: false // Necessário para DigitalOcean (self-signed certs)
     },

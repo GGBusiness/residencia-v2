@@ -1,4 +1,6 @@
-import { supabase } from './supabase';
+'use server';
+
+import { query } from '@/lib/db';
 import type { Document } from './data-service';
 
 export interface SelectionCriteria {
@@ -19,11 +21,10 @@ export async function selectDocuments(criteria: SelectionCriteria): Promise<Docu
     // Calcular quantos PDFs selecionar baseado na quantidade de questões
     const numDocuments = calculateDocumentCount(questionCount);
 
-    // Construir query
-    let query = supabase
-        .from('documents')
-        .select('*')
-        .eq('type', 'PROVA'); // Só provas, não simulados/aulas
+    // Construir query SQL
+    let sql = "SELECT * FROM documents WHERE type = 'PROVA'";
+    const params: any[] = [];
+    let pIndex = 1;
 
     // Filtrar por área se especificado
     if (area && area !== 'todas') {
@@ -36,40 +37,61 @@ export async function selectDocuments(criteria: SelectionCriteria): Promise<Docu
         };
 
         const mappedArea = areaMap[area] || area;
-        query = query.eq('area', mappedArea);
+        sql += ` AND area = $${pIndex}`;
+        params.push(mappedArea);
+        pIndex++;
     }
 
     // Filtrar por anos se especificado
     if (years && years.length > 0) {
-        query = query.in('year', years);
+        sql += ` AND year = ANY($${pIndex}::int[])`;
+        params.push(years);
+        pIndex++;
     }
 
     // Filtrar por instituições se especificado
     if (programs && programs.length > 0) {
-        query = query.in('institution', programs);
+        sql += ` AND institution = ANY($${pIndex}::text[])`;
+        params.push(programs);
+        pIndex++;
     }
 
     // Ordenar por ano decrescente (provas mais recentes primeiro)
-    query = query.order('year', { ascending: false, nullsFirst: false });
+    sql += ` ORDER BY year DESC`;
 
     // Buscar mais documentos do que o necessário para ter opções
-    query = query.limit(numDocuments * 3);
+    // Em SQL usamos LIMIT
+    sql += ` LIMIT $${pIndex}`;
+    params.push(numDocuments * 3);
 
-    const { data: documents, error } = await query;
+    try {
+        const { rows } = await query(sql, params);
+        const documents = rows as Document[];
 
-    if (error) {
+        if (!documents || documents.length === 0) {
+            // Se não encontrou nada, tenta buscar sem filtro de instituição para não falhar totalmente
+            if (programs && programs.length > 0) {
+                // Retry logic could be added here, basically run query again without programs filter
+                // For now, let's just return empty array or throw as before
+            }
+            // Don't throw immediately, let the empty check below handle it or return empty
+        }
+
+        if (documents.length === 0) {
+            // Fallback: return any documents if specific filters failed? 
+            // Or throw
+            throw new Error('Nenhum documento encontrado com os critérios especificados');
+        }
+
+        // Aplicar lógica de seleção inteligente (in-memory filtering/sorting of the fetched subset)
+        const selected = applySmartSelection(documents, criteria, numDocuments);
+
+        return selected;
+
+    } catch (error) {
         console.error('Error selecting documents:', error);
-        throw error;
+        throw error; // Propagate error
     }
-
-    if (!documents || documents.length === 0) {
-        throw new Error('Nenhum documento encontrado com os critérios especificados');
-    }
-
-    // Aplicar lógica de seleção inteligente
-    const selected = applySmartSelection(documents as Document[], criteria, numDocuments);
-
-    return selected;
 }
 
 /**

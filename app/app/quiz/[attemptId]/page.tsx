@@ -6,7 +6,7 @@ import { ArrowLeft, ArrowRight, CheckCircle2, Clock, Flag } from 'lucide-react';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { supabase } from '@/lib/supabase';
+import { getQuizDataAction, saveAnswerAction, finishQuizAction } from '@/app/actions/quiz-actions';
 
 interface Question {
     id: string;
@@ -69,79 +69,35 @@ export default function QuizPage() {
     const loadQuiz = async () => {
         try {
             setLoading(true);
+            const result = await getQuizDataAction(attemptId);
 
-            // Buscar attempt
-            const { data: attemptData, error: attemptError } = await supabase
-                .from('attempts')
-                .select('*')
-                .eq('id', attemptId)
-                .single();
-
-            if (attemptError) throw attemptError;
-            setAttempt(attemptData);
-
-            // Buscar questões baseado na configuração
-            const config = attemptData.config;
-            let query = supabase.from('questions').select('*');
-
-            // Filtrar por área
-            if (config.area && config.area !== 'todas') {
-                query = query.eq('area', config.area);
-            }
-
-            // Filtrar por instituição
-            if (config.programs && config.programs.length > 0) {
-                query = query.in('institution', config.programs);
-            }
-
-            // Filtrar por anos
-            if (config.years && config.years.length > 0) {
-                query = query.in('year', config.years);
-            }
-
-            // Filtrar por dificuldade
-            if (config.difficulty && config.difficulty !== 'todas') {
-                if (config.difficulty === 'Faca na caveira') {
-                    query = query.ilike('difficulty', '%Dificil%');
-                } else {
-                    query = query.ilike('difficulty', `%${config.difficulty}%`);
+            if (!result.success || !result.data) {
+                // Determine error message or redirect
+                if (result.error === 'Attempt not found') {
+                    alert('Prova não encontrada.');
+                    router.push('/app/monta-provas');
+                    return;
                 }
+                throw new Error(result.error || 'Failed to load');
             }
 
-            // Filtrar por IDs específicos (Para Revisão FSRS)
-            if (config.specific_ids && config.specific_ids.length > 0) {
-                query = query.in('id', config.specific_ids);
-            }
+            setAttempt(result.data.attempt);
+            setQuestions(result.data.questions);
 
-            // Limitar quantidade
-            if (!config.specific_ids) {
-                query = query.limit(config.questionCount || 20);
-            }
-
-            const { data: questionsData, error: questionsError } = await query;
-            setQuestions(questionsData || []); // Move setQuestions here to fix logic flow if needed, or keep existing flow
-
-
-            if (questionsError) throw questionsError;
-            setQuestions(questionsData || []);
-
-            // Carregar respostas salvas
-            const { data: savedAnswers } = await supabase
-                .from('user_answers')
-                .select('*')
-                .eq('attempt_id', attemptId);
-
-            if (savedAnswers) {
-                const answersMap = new Map();
-                savedAnswers.forEach((ans: any) => {
+            // Map answers
+            const answersMap = new Map();
+            result.data.answers.forEach((ans: any) => {
+                // Find matching question for answer to link? 
+                // We returned question_id in action, so:
+                if (ans.question_id) {
                     answersMap.set(ans.question_id, {
                         question_id: ans.question_id,
                         user_answer: ans.user_answer,
-                        flagged: false,
+                        flagged: ans.flagged
                     });
-                });
-                setAnswers(answersMap);
-            }
+                }
+            });
+            setAnswers(answersMap);
 
         } catch (error) {
             console.error('Error loading quiz:', error);
@@ -169,12 +125,7 @@ export default function QuizPage() {
 
         // Salvar no banco
         const isCorrect = answer === question.correct_answer;
-        await supabase.from('user_answers').upsert({
-            attempt_id: attemptId,
-            question_id: question.id,
-            user_answer: answer,
-            is_correct: isCorrect,
-        });
+        await saveAnswerAction(attemptId, question.id, answer, isCorrect);
     };
 
     const finishQuiz = async () => {
@@ -188,16 +139,11 @@ export default function QuizPage() {
         const percentage = (correctCount / questions.length) * 100;
         const timeSpent = Math.floor((Date.now() - startTime) / 1000);
 
-        await supabase
-            .from('attempts')
-            .update({
-                status: 'completed',
-                completed_at: new Date().toISOString(),
-                correct_answers: correctCount,
-                percentage: percentage.toFixed(2),
-                time_spent_seconds: timeSpent,
-            })
-            .eq('id', attemptId);
+        await finishQuizAction(attemptId, {
+            correctCount,
+            percentage,
+            timeSpent
+        });
 
         setShowResults(true);
     };

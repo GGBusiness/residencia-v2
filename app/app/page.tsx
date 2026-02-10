@@ -16,9 +16,9 @@ import {
 import { Card, CardBody, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { getUserStats } from '@/lib/stats-service';
 import { supabase } from '@/lib/supabase';
 import { useUser } from '@/hooks/useUser';
+import { getDashboardDataAction } from '@/app/actions/study-actions';
 
 export default function HomePage() {
     const router = useRouter();
@@ -32,43 +32,37 @@ export default function HomePage() {
         loadDashboard();
     }, []);
 
+
+
+    // ... inside component
+
     const loadDashboard = async () => {
         try {
-            // Carregar estatísticas
-            const userStats = await getUserStats();
-            setStats(userStats);
+            if (!user?.id) return;
 
-            // Carregar plano diário
-            if (user?.id) {
-                const { plannerService } = await import('@/lib/planner-service');
-                const plan = await plannerService.getDailyPlan(user.id);
-                setDailyPlan(plan);
-            }
+            const result = await getDashboardDataAction(user.id);
 
-            // Carregar eventos da semana
-            const today = new Date();
-            const dayOfWeek = today.getDay();
-            const monday = new Date(today);
-            monday.setDate(today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
+            if (result.success && result.data) {
+                setStats(result.data.stats);
+                setDailyPlan(result.data.dailyPlan);
 
-            const sunday = new Date(monday);
-            sunday.setDate(monday.getDate() + 6);
+                // Process week events (client-side logic for display)
+                const events = result.data.weekEvents;
+                const today = new Date();
+                const dayOfWeek = today.getDay();
+                const monday = new Date(today);
+                monday.setDate(today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
 
-            const { data: events } = await supabase
-                .from('study_events')
-                .select('*')
-                .gte('date', monday.toISOString().split('T')[0])
-                .lte('date', sunday.toISOString().split('T')[0])
-                .order('date', { ascending: true })
-                .order('start_time', { ascending: true });
-
-            if (events) {
                 const week = [];
                 for (let i = 0; i < 7; i++) {
                     const date = new Date(monday);
                     date.setDate(monday.getDate() + i);
                     const dateStr = date.toISOString().split('T')[0];
-                    const dayEvents = events.filter((e: any) => e.date === dateStr);
+                    const dayEvents = events.filter((e: any) => {
+                        // Ensure date comp is correct string vs string
+                        const eDate = new Date(e.date).toISOString().split('T')[0];
+                        return eDate === dateStr;
+                    });
 
                     // Calcular horas do dia
                     const totalMinutes = dayEvents.reduce((sum: number, e: any) => {

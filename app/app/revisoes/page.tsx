@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { getReviewStatsAction, startReviewSessionAction } from '@/app/actions/study-actions';
 import { supabase } from '@/lib/supabase';
 import { Brain, Calendar, CheckCircle2, Clock, Play } from 'lucide-react';
 
@@ -29,31 +30,14 @@ export default function ReviewDashboard() {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) return;
 
-            const now = new Date().toISOString();
+            const result = await getReviewStatsAction(session.user.id);
 
-            // Count due reviews
-            const { count, error } = await supabase
-                .from('user_question_progress')
-                .select('*', { count: 'exact', head: true })
-                .eq('user_id', session.user.id)
-                .lte('next_review_at', now);
-
-            if (error) throw error;
-
-            // Get next review date if any
-            const { data: nextReview } = await supabase
-                .from('user_question_progress')
-                .select('next_review_at')
-                .eq('user_id', session.user.id)
-                .gt('next_review_at', now)
-                .order('next_review_at', { ascending: true })
-                .limit(1)
-                .single();
-
-            setStats({
-                totalDue: count || 0,
-                nextReviewDate: nextReview?.next_review_at || null
-            });
+            if (result.success && result.data) {
+                setStats({
+                    totalDue: result.data.totalDue,
+                    nextReviewDate: result.data.nextReviewDate
+                });
+            }
         } catch (error) {
             console.error('Error loading review stats:', error);
         } finally {
@@ -67,46 +51,13 @@ export default function ReviewDashboard() {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) return;
 
-            const now = new Date().toISOString();
+            const result = await startReviewSessionAction(session.user.id);
 
-            // 1. Get IDs of questions to review
-            const { data: dueItems, error: fetchError } = await supabase
-                .from('user_question_progress')
-                .select('question_id')
-                .eq('user_id', session.user.id)
-                .lte('next_review_at', now)
-                .limit(50); // Limit to 50 per session for sanity
-
-            if (fetchError) throw fetchError;
-
-            if (!dueItems || dueItems.length === 0) {
-                alert('Nenhuma revisão pendente encontrada.');
-                return;
+            if (result.success && result.attemptId) {
+                router.push(`/app/quiz/${result.attemptId}`);
+            } else {
+                alert(result.error || 'Erro ao iniciar revisão.');
             }
-
-            const questionIds = dueItems.map(item => item.question_id);
-
-            // 2. Create a "Review Attempt"
-            const { data: attempt, error: createError } = await supabase
-                .from('attempts')
-                .insert({
-                    user_id: session.user.id,
-                    mode: 'review', // Optional tag if schema allows, otherwise just use config
-                    config: {
-                        type: 'review',
-                        specific_ids: questionIds,
-                        questionCount: questionIds.length
-                    },
-                    status: 'started',
-                    started_at: new Date().toISOString()
-                })
-                .select()
-                .single();
-
-            if (createError) throw createError;
-
-            // 3. Redirect to QuizPage
-            router.push(`/app/quiz/${attempt.id}`);
 
         } catch (error) {
             console.error('Error starting review:', error);

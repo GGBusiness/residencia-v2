@@ -1,4 +1,5 @@
-import { supabase } from './supabase';
+import { db, query } from './db';
+import { supabase } from './supabase'; // Mantido apenas para tipos ou auth se necessário
 
 export interface User {
     id: string;
@@ -44,38 +45,26 @@ export interface OnboardingData {
 }
 
 class UserService {
-    // Obter ou criar usuário atual (mock por enquanto)
-    async getCurrentUser(): Promise<User | null> {
+    // Obter dados do usuário (Via Postgres)
+    async getCurrentUser(userId: string): Promise<User | null> {
         try {
-            const { data, error } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', '00000000-0000-0000-0000-000000000001')
-                .single();
-
-            if (error) throw error;
-            return data;
+            const { rows } = await query('SELECT * FROM users WHERE id = $1', [userId]);
+            return rows[0] || null;
         } catch (error) {
             console.error('Error getting current user:', error);
             return null;
         }
     }
 
-    // Criar novo usuário
-    async createUser(name: string, email: string): Promise<User | null> {
+    // Criar novo usuário (Geralmente via Auth Hook, mas mantendo utilitário)
+    async createUser(name: string, email: string, id: string): Promise<User | null> {
         try {
-            const { data, error } = await supabase
-                .from('users')
-                .insert({
-                    name,
-                    email,
-                    onboarding_completed: false,
-                })
-                .select()
-                .single();
-
-            if (error) throw error;
-            return data;
+            const { rows } = await query(`
+                INSERT INTO users (id, name, email, onboarding_completed)
+                VALUES ($1, $2, $3, FALSE)
+                RETURNING *
+            `, [id, name, email]);
+            return rows[0];
         } catch (error) {
             console.error('Error creating user:', error);
             return null;
@@ -85,14 +74,8 @@ class UserService {
     // Obter perfil do usuário
     async getUserProfile(userId: string): Promise<UserProfile | null> {
         try {
-            const { data, error } = await supabase
-                .from('user_profiles')
-                .select('*')
-                .eq('user_id', userId)
-                .single();
-
-            if (error) throw error;
-            return data;
+            const { rows } = await query('SELECT * FROM user_profiles WHERE user_id = $1', [userId]);
+            return rows[0] || null;
         } catch (error) {
             console.error('Error getting user profile:', error);
             return null;
@@ -102,14 +85,8 @@ class UserService {
     // Obter metas do usuário
     async getUserGoals(userId: string): Promise<UserGoals | null> {
         try {
-            const { data, error } = await supabase
-                .from('user_goals')
-                .select('*')
-                .eq('user_id', userId)
-                .single();
-
-            if (error) throw error;
-            return data;
+            const { rows } = await query('SELECT * FROM user_goals WHERE user_id = $1', [userId]);
+            return rows[0] || null;
         } catch (error) {
             console.error('Error getting user goals:', error);
             return null;
@@ -119,55 +96,63 @@ class UserService {
     // Completar onboarding
     async completeOnboarding(userId: string, onboardingData: OnboardingData): Promise<boolean> {
         try {
-            // 1. Criar ou atualizar usuário (UPSERT)
-            const { error: userError } = await supabase
-                .from('users')
-                .upsert({
-                    id: userId,
-                    name: onboardingData.name,
-                    email: onboardingData.email,
-                    onboarding_completed: true,
-                    last_login: new Date().toISOString(),
-                })
-                .select()
-                .single();
+            console.log('🚀 Finalizando Onboarding no DigitalOcean para:', userId);
 
-            if (userError) {
-                console.error('User upsert error:', userError);
-                throw userError;
-            }
+            // 1. Atualizar user
+            await query(`
+                INSERT INTO users (id, name, email, onboarding_completed, last_login)
+                VALUES ($1, $2, $3, TRUE, NOW())
+                ON CONFLICT (id) DO UPDATE 
+                SET name = EXCLUDED.name,
+                    email = EXCLUDED.email,
+                    onboarding_completed = TRUE,
+                    last_login = NOW()
+            `, [userId, onboardingData.name, onboardingData.email]);
 
-            // 2. Criar perfil
-            const { error: profileError } = await supabase
-                .from('user_profiles')
-                .upsert({
-                    user_id: userId,
-                    target_institution: onboardingData.target_institution,
-                    target_specialty: onboardingData.target_specialty,
-                    exam_timeframe: onboardingData.exam_timeframe,
-                    weekly_hours: onboardingData.weekly_hours,
-                    has_attempted_before: onboardingData.has_attempted_before,
-                    theoretical_base: onboardingData.theoretical_base,
-                });
+            // 2. Upsert Perfil
+            await query(`
+                INSERT INTO user_profiles 
+                (user_id, target_institution, target_specialty, exam_timeframe, weekly_hours, has_attempted_before, theoretical_base)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                ON CONFLICT (user_id) DO UPDATE
+                SET target_institution = EXCLUDED.target_institution,
+                    target_specialty = EXCLUDED.target_specialty,
+                    exam_timeframe = EXCLUDED.exam_timeframe,
+                    weekly_hours = EXCLUDED.weekly_hours,
+                    has_attempted_before = EXCLUDED.has_attempted_before,
+                    theoretical_base = EXCLUDED.theoretical_base
+            `, [
+                userId,
+                onboardingData.target_institution,
+                onboardingData.target_specialty,
+                onboardingData.exam_timeframe,
+                onboardingData.weekly_hours,
+                onboardingData.has_attempted_before,
+                onboardingData.theoretical_base
+            ]);
 
-            if (profileError) {
-                console.error('Profile upsert error:', profileError);
-                throw profileError;
-            }
-
-            // 3. Calcular e criar metas
+            // 3. Calcular e Upsert Metas
             const goals = this.calculateGoals(onboardingData);
-            const { error: goalsError } = await supabase
-                .from('user_goals')
-                .upsert({
-                    user_id: userId,
-                    ...goals,
-                });
-
-            if (goalsError) {
-                console.error('Goals upsert error:', goalsError);
-                throw goalsError;
-            }
+            await query(`
+                INSERT INTO user_goals 
+                (user_id, daily_hours_goal, weekly_hours_goal, target_percentage, theory_percentage, practice_percentage, focus_area)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                ON CONFLICT (user_id) DO UPDATE
+                SET daily_hours_goal = EXCLUDED.daily_hours_goal,
+                    weekly_hours_goal = EXCLUDED.weekly_hours_goal,
+                    target_percentage = EXCLUDED.target_percentage,
+                    theory_percentage = EXCLUDED.theory_percentage,
+                    practice_percentage = EXCLUDED.practice_percentage,
+                    focus_area = EXCLUDED.focus_area
+            `, [
+                userId,
+                goals.daily_hours_goal,
+                goals.weekly_hours_goal,
+                goals.target_percentage,
+                goals.theory_percentage,
+                goals.practice_percentage,
+                goals.focus_area
+            ]);
 
             return true;
         } catch (error) {

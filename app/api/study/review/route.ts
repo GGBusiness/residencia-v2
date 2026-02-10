@@ -1,8 +1,8 @@
 
-import { createServerClient } from '@/lib/supabase';
+import { query } from '@/lib/db';
 import { calculateNextReview, ReviewRating } from '@/lib/fsrs';
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { createServerClient } from '@/lib/supabase'; // Only for Auth
 
 export async function POST(req: Request) {
     try {
@@ -27,36 +27,40 @@ export async function POST(req: Request) {
         }
 
         // 1. Get Current Progress
-        const { data: currentProgress } = await supabase
-            .from('user_question_progress')
-            .select('*')
-            .eq('user_id', session.user.id)
-            .eq('question_id', questionId)
-            .single();
+        const { rows: progressRows } = await query(
+            'SELECT * FROM user_question_progress WHERE user_id = $1 AND question_id = $2',
+            [session.user.id, questionId]
+        );
+        const currentProgress = progressRows[0];
 
         // 2. Calculate New State
-        const newState = calculateNextReview(currentProgress, numericRating);
+        const newState = calculateNextReview(currentProgress || undefined, numericRating);
 
         // 3. Save to DB
-        // We use upsert to handle both insert (new) and update (existing)
-        const { error } = await supabase
-            .from('user_question_progress')
-            .upsert({
-                user_id: session.user.id,
-                question_id: questionId,
-                stability: newState.stability,
-                difficulty: newState.difficulty,
-                repetition_count: newState.repetition_count,
-                last_review_at: newState.last_review_at.toISOString(),
-                next_review_at: newState.next_review_at.toISOString(),
-                state: newState.state,
-                updated_at: new Date().toISOString()
-            }, { onConflict: 'user_id, question_id' });
-
-        if (error) {
-            console.error('Error saving progress:', error);
-            return new NextResponse('Database Error', { status: 500 });
-        }
+        // Upsert logic
+        await query(`
+            INSERT INTO user_question_progress (
+                user_id, question_id, stability, difficulty, repetition_count,
+                last_review_at, next_review_at, state, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+            ON CONFLICT (user_id, question_id) DO UPDATE SET
+                stability = EXCLUDED.stability,
+                difficulty = EXCLUDED.difficulty,
+                repetition_count = EXCLUDED.repetition_count,
+                last_review_at = EXCLUDED.last_review_at,
+                next_review_at = EXCLUDED.next_review_at,
+                state = EXCLUDED.state,
+                updated_at = NOW()
+        `, [
+            session.user.id,
+            questionId,
+            newState.stability,
+            newState.difficulty,
+            newState.repetition_count,
+            newState.last_review_at,
+            newState.next_review_at,
+            newState.state
+        ]);
 
         return NextResponse.json({
             success: true,

@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { userService, type OnboardingData } from '@/lib/user-service';
+import { type OnboardingData } from '@/lib/user-service';
+import { completeOnboardingAction } from '@/app/actions/user-actions';
 import { ArrowRight, ArrowLeft, CheckCircle2, Sparkles } from 'lucide-react';
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
@@ -96,6 +97,10 @@ export default function OnboardingPage() {
         }
     };
 
+
+
+    // ... inside component
+
     const handleComplete = async () => {
         if (!userId) {
             alert('Erro: Usuário não identificado. Faça login novamente.');
@@ -105,15 +110,15 @@ export default function OnboardingPage() {
 
         setLoading(true);
         try {
-            console.log('=== INICIANDO ONBOARDING ===');
+            console.log('=== INICIANDO ONBOARDING (Server Action) ===');
             console.log('UserID:', userId);
-            console.log('FormData:', formData);
 
-            const success = await userService.completeOnboarding(userId, formData);
+            // Server Action call
+            const result = await completeOnboardingAction(userId, formData);
 
-            console.log('Resultado completeOnboarding:', success);
+            console.log('Resultado completeOnboarding:', result);
 
-            if (success) {
+            if (result.success) {
                 // Redirecionar para dashboard
                 router.push('/app');
             } else {
