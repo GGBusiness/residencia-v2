@@ -132,12 +132,12 @@ function calculatePercentages(group: Record<string, { correct: number; total: nu
 
 // Calcular projeção (Helper puro, sem banco)
 export function calculateProjection(
-    answeredCorrect: number,
-    answeredTotal: number,
+    correct: number,
+    total: number,
     totalQuestions: number
 ): number {
-    if (answeredTotal === 0) return 0;
-    const currentPercent = answeredCorrect / answeredTotal;
+    if (total === 0) return 0;
+    const currentPercent = correct / total;
     return Math.round(currentPercent * totalQuestions);
 }
 

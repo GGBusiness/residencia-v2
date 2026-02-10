@@ -12,7 +12,7 @@ if (!pool) {
   pool = new Pool({
     connectionString: process.env.DIGITALOCEAN_DB_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL,
     ssl: {
-      rejectUnauthorized: false // Necessário para DigitalOcean (self-signed certs)
+      rejectUnauthorized: false
     },
     max: 10, // Limite de conexões simultâneas
     idleTimeoutMillis: 30000,
