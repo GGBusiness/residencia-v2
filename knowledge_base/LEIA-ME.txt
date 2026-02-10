@@ -1,0 +1,4 @@
+Esta é a pasta onde você deve colocar seus PDFs.
+Assim que colocar os arquivos aqui, rode o script de ingestão:
+
+npx tsx scripts/ingest-knowledge.ts

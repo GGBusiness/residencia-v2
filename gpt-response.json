@@ -1,0 +1,8 @@
+{
+  "error": {
+    "message": "Invalid MIME type. Only image types are supported.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "invalid_image_format"
+  }
+}

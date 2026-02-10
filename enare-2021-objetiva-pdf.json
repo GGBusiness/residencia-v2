@@ -1,0 +1,62 @@
+[
+  {
+    "numero": 1,
+    "texto_questao": "Paciente com SIADH (Síndrome de Liberação Inadequada de Hormônio Antidiurético) é atendido no Hospital com quadro de hiponatremia moderada crônica. Sobre essa condição e seu tratamento, é correto afirmar que",
+    "alternativa_a": "O tratamento deve ser realizado com infusão rápida de soro glicosado 5%.",
+    "alternativa_b": "A correção lenta do sódio pode gerar mielinólise pontina central.",
+    "alternativa_c": "O índice de aumento do sódio sérico deve ser de no mínimo 12mEq/kg por dia.",
+    "alternativa_d": "Na hiponatremia prolongada, também pode haver depleção de potássio com necessidade de reposição.",
+    "alternativa_e": "A taxa de correção do sódio deve ser de pelo menos 0,5 mEq/L por hora para evitar mielinólise pontina.",
+    "gabarito": "D",
+    "area": "Clínica Médica",
+    "dificuldade": "media"
+  },
+  {
+    "numero": 2,
+    "texto_questao": "Referente ao choque hemorrágico e seu tratamento, assinale a alternativa correta.",
+    "alternativa_a": "Na maioria dos casos, é necessária intervenção cirúrgica imediata.",
+    "alternativa_b": "Pacientes adultos com hipotensão, mesmo após reposição de 500mL de solução eletrolítica, precisam de transfusão sanguínea.",
+    "alternativa_c": "O tratamento do choque hemorrágico pode gerar síndrome compartimental abdominal.",
+    "alternativa_d": "A reanimação no choque deve ser feita com infusão de coloides em bólus.",
+    "alternativa_e": "A coagulopatia é comum nos pacientes que precisam de transfusão maciça, sendo necessária a infusão de anticoagulantes.",
+    "gabarito": "C",
+    "area": "Clínica Médica",
+    "dificuldade": "alta"
+  },
+  {
+    "numero": 3,
+    "texto_questao": "Em relação às fases e processos da cicatrização, é correto afirmar que",
+    "alternativa_a": "há, na fase inflamatória, secreção de citocinas e migração de células para a ferida por quimiotaxia.",
+    "alternativa_b": "a adesão das plaquetas ao endotélio é mediada principalmente pelas prostaglandinas.",
+    "alternativa_c": "ocorrem, na fase de maturação da ferida, principalmente, a angiogênese e a formação de tecido de granulação.",
+    "alternativa_d": "a fase de proliferação se inicia após a fase de maturação, com formação de arranjos de colágeno.",
+    "alternativa_e": null,
+    "gabarito": "A",
+    "area": "Cirurgia",
+    "dificuldade": "media"
+  },
+  {
+    "numero": 4,
+    "texto_questao": "Sobre a regulação hormonal da homeostase do cálcio, é correto afirmar que",
+    "alternativa_a": "A calcitonina é o principal hormônio regulador do cálcio sérico.",
+    "alternativa_b": "O cálcio é essencial para a coagulação sanguínea e a excitabilidade neuromuscular.",
+    "alternativa_c": "A paratireoide produz o hormônio calcitriol, que aumenta a absorção de cálcio nos rins.",
+    "alternativa_d": "O aumento da fosfatemia inibe a secreção de paratormônio.",
+    "alternativa_e": "A vitamina D aumenta a absorção intestinal de cálcio.",
+    "gabarito": "E",
+    "area": "Endocrinologia",
+    "dificuldade": "media"
+  },
+  {
+    "numero": 5,
+    "texto_questao": "Paciente, 50 anos, masculino, comparece à consulta para avaliação de rotina. Apresenta quadro de dispepsia e sensação de plenitude pós-prandial. Há perda ponderal de 10 kg nos últimos 60 dias. Assinale a alternativa correta sobre a investigação desse caso.",
+    "alternativa_a": "Solicitar endoscopia digestiva alta com biópsia é a conduta inicial mais adequada.",
+    "alternativa_b": "A pesquisa de Helicobacter pylori deve ser o primeiro exame solicitado.",
+    "alternativa_c": "A ultrassonografia de abdome deve ser priorizada em relação a exames endoscópicos.",
+    "alternativa_d": "A investigação deve focar em repetir exames de sangue antes de procedimentos invasivos.",
+    "alternativa_e": "Tratar inicialmente com inibidores de bomba de prótons é a melhor estratégia.",
+    "gabarito": "A",
+    "area": "Gastroenterologia",
+    "dificuldade": "media"
+  }
+]

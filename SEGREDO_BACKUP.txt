@@ -1,0 +1,16 @@
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL=redacted_for_security
+NEXT_PUBLIC_SUPABASE_ANON_KEY=redacted_for_security
+SUPABASE_SERVICE_ROLE_KEY=redacted_for_security
+
+# App Configuration
+NEXT_PUBLIC_APP_URL=redacted_for_security
+
+# Anthropic Claude API (para importação automática de questões)
+ANTHROPIC_API_KEY=redacted_for_security
+
+# OpenAI API (GPT-4o)
+OPENAI_API_KEY=redacted_for_security
+
+# OpenAI Assistant (File Agent)
+OPENAI_ASSISTANT_ID=redacted_for_security
