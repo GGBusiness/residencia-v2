@@ -122,7 +122,8 @@ export default function OnboardingPage() {
                 // Redirecionar para dashboard
                 router.push('/app');
             } else {
-                alert('❌ Erro ao salvar dados. Tente novamente.');
+                console.error('Onboarding failed:', result.error);
+                alert(`❌ Erro: ${result.error || 'Erro desconhecido ao salvar.'}`);
             }
         } catch (error) {
             console.error('=== ERRO NO ONBOARDING ===', error);
