@@ -39,7 +39,7 @@ export default function LoginPage() {
 
             // Redirecionar para onboarding se ainda não fez, senao para home
             if (!preferences) {
-                router.push('/app/onboarding');
+                router.push('/onboarding');
             } else {
                 router.push('/app/home');
             }

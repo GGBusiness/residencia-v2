@@ -83,7 +83,7 @@ export default function SignupPage() {
             }
 
             // Redirecionar para onboarding
-            router.push('/app/onboarding');
+            router.push('/onboarding');
         } catch (err: any) {
             setError(err.message || 'Erro ao criar conta');
         } finally {

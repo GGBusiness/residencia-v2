@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { userService, type OnboardingData } from '@/lib/user-service';
@@ -68,6 +69,21 @@ export default function OnboardingPage() {
         { value: 'excelente', label: '🚀 Excelente - Muito seguro', emoji: '🎯' },
     ];
 
+    const [userId, setUserId] = useState<string | null>(null);
+
+    // Verificar autenticação ao carregar
+    useEffect(() => {
+        const checkAuth = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                router.push('/auth/login');
+                return;
+            }
+            setUserId(user.id);
+        };
+        checkAuth();
+    }, [router]);
+
     const handleNext = () => {
         if (currentStep < 6) {
             setCurrentStep((currentStep + 1) as Step);
@@ -81,11 +97,14 @@ export default function OnboardingPage() {
     };
 
     const handleComplete = async () => {
+        if (!userId) {
+            alert('Erro: Usuário não identificado. Faça login novamente.');
+            router.push('/auth/login');
+            return;
+        }
+
         setLoading(true);
         try {
-            // Usar UUID fixo por enquanto (substituir quando tiver auth real)
-            const userId = '00000000-0000-0000-0000-000000000001';
-
             console.log('=== INICIANDO ONBOARDING ===');
             console.log('UserID:', userId);
             console.log('FormData:', formData);
@@ -95,15 +114,14 @@ export default function OnboardingPage() {
             console.log('Resultado completeOnboarding:', success);
 
             if (success) {
-                alert('✅ Dados salvos com sucesso! Redirecionando...');
                 // Redirecionar para dashboard
                 router.push('/app');
             } else {
-                alert('❌ Erro ao salvar dados. Verifique o Console do navegador (F12 → Console) para detalhes.');
+                alert('❌ Erro ao salvar dados. Tente novamente.');
             }
         } catch (error) {
             console.error('=== ERRO NO ONBOARDING ===', error);
-            alert(`❌ Erro: ${error instanceof Error ? error.message : 'desconhecido'}. Veja Console (F12)`);
+            alert(`❌ Erro: ${error instanceof Error ? error.message : 'desconhecido'}.`);
         } finally {
             setLoading(false);
         }
