@@ -2,7 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { userService, type User, type UserProfile, type UserGoals } from '@/lib/user-service';
+import {
+    getCurrentUserAction,
+    getUserProfileAction,
+    getUserGoalsAction
+} from '@/app/actions/user-actions';
+import type { User, UserProfile, UserGoals } from '@/lib/user-service';
 
 export function useUser() {
     const [user, setUser] = useState<User | null>(null);
@@ -33,25 +38,25 @@ export function useUser() {
                 return;
             }
 
-            const userData = await Promise.race([
-                userService.getCurrentUser(sbUser.id),
+            const result = await Promise.race([
+                getCurrentUserAction(sbUser.id),
                 timeoutPromise
-            ]) as User | null;
+            ]) as any;
 
-            if (userData) {
+            if (result.success && result.data) {
+                const userData = result.data;
                 setUser(userData);
 
-                // Carregar profile e goals em paralelo, mas não bloquear se falhar
+                // Carregar profile e goals em paralelo
                 try {
-                    const [profileData, goalsData] = await Promise.all([
-                        userService.getUserProfile(userData.id),
-                        userService.getUserGoals(userData.id),
+                    const [pResult, gResult] = await Promise.all([
+                        getUserProfileAction(userData.id),
+                        getUserGoalsAction(userData.id),
                     ]);
-                    setProfile(profileData);
-                    setGoals(goalsData);
+                    if (pResult.success && pResult.data) setProfile(pResult.data);
+                    if (gResult.success && gResult.data) setGoals(gResult.data);
                 } catch (err) {
                     console.warn('Could not load profile/goals:', err);
-                    // Continuar mesmo sem profile/goals
                 }
             }
         } catch (error) {

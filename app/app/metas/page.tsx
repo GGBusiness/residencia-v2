@@ -5,14 +5,15 @@ import { useRouter } from 'next/navigation';
 import { Target, TrendingUp, Award, Calendar } from 'lucide-react';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { getUserStats } from '@/lib/stats-service';
+import { type UserStats } from '@/lib/stats-utils';
+import { getUserStatsAction } from '@/app/actions/user-actions';
 import { supabase } from '@/lib/supabase';
 import { useUser } from '@/hooks/useUser';
 
 export default function MetasPage() {
     const router = useRouter();
     const { user } = useUser();
-    const [stats, setStats] = useState<any>(null);
+    const [stats, setStats] = useState<UserStats | null>(null);
     const [cutScores, setCutScores] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -25,8 +26,10 @@ export default function MetasPage() {
     const loadMetas = async () => {
         try {
             if (!user?.id) return;
-            const userStats = await getUserStats(user.id);
-            setStats(userStats);
+            const result = await getUserStatsAction(user.id);
+            if (result.success && result.data) {
+                setStats(result.data);
+            }
 
             const { data: scores } = await supabase
                 .from('cut_scores')

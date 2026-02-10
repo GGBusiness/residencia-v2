@@ -28,3 +28,33 @@ export async function getUserStatsAction(userId: string) {
         return { success: false, error: 'Failed to fetch stats' };
     }
 }
+
+export async function getCurrentUserAction(userId: string) {
+    try {
+        const user = await userService.getCurrentUser(userId);
+        return { success: true, data: user };
+    } catch (error) {
+        console.error('Error in getCurrentUserAction:', error);
+        return { success: false, error: 'Failed' };
+    }
+}
+
+export async function getUserProfileAction(userId: string) {
+    try {
+        const profile = await userService.getUserProfile(userId);
+        return { success: true, data: profile };
+    } catch (error) {
+        console.error('Error in getUserProfileAction:', error);
+        return { success: false, error: 'Failed' };
+    }
+}
+
+export async function getUserGoalsAction(userId: string) {
+    try {
+        const goals = await userService.getUserGoals(userId);
+        return { success: true, data: goals };
+    } catch (error) {
+        console.error('Error in getUserGoalsAction:', error);
+        return { success: false, error: 'Failed' };
+    }
+}

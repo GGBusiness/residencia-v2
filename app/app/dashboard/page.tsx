@@ -6,7 +6,8 @@ import { ArrowLeft, TrendingUp, Target, Award, Brain, Calendar } from 'lucide-re
 import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { getUserStats, generateRecommendations, type UserStats } from '@/lib/stats-service';
+import { generateRecommendations, type UserStats } from '@/lib/stats-utils';
+import { getUserStatsAction } from '@/app/actions/user-actions';
 import { supabase } from '@/lib/supabase';
 import { useUser } from '@/hooks/useUser';
 
@@ -37,8 +38,12 @@ export default function DashboardPage() {
 
             // Carregar estatísticas
             if (!user?.id) return;
-            const userStats = await getUserStats(user.id);
-            setStats(userStats);
+            const result = await getUserStatsAction(user.id);
+            let currentUserStats = null;
+            if (result.success && result.data) {
+                setStats(result.data);
+                currentUserStats = result.data;
+            }
 
             // Carregar notas de corte (principais instituições)
             const { data: scores } = await supabase
@@ -51,8 +56,10 @@ export default function DashboardPage() {
                 setCutScores(scores as CutScore[]);
 
                 // Gerar recomendações
-                const recs = generateRecommendations(userStats, scores as any);
-                setRecommendations(recs);
+                if (currentUserStats) {
+                    const recs = generateRecommendations(currentUserStats, scores as any);
+                    setRecommendations(recs);
+                }
             }
         } catch (error) {
             console.error('Error loading dashboard:', error);
