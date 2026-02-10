@@ -1,38 +1,32 @@
+import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config({ path: '.env.local' });
 
 import OpenAI from 'openai';
-import dotenv from 'dotenv';
-import path from 'path';
 
-// Load environment variables
-dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+async function test() {
+    console.log('🔑 Testando chave OpenAI...');
 
-// Force use of the last key if multiple exist (manual split for safety)
-// But dotenv should handle last-write-wins. 
-// Let's print the key (masked) to be sure.
-const key = process.env.OPENAI_API_KEY || '';
-console.log('Testing OpenAI connection...');
-console.log('API Key length:', key.length);
-console.log('API Key start:', key.substring(0, 10));
+    const key = process.env.OPENAI_API_KEY;
+    if (!key) {
+        console.error('❌ ERRO: OPENAI_API_KEY não encontrada nas variáveis de ambiente.');
+        return;
+    }
 
-const openai = new OpenAI({
-    apiKey: key,
-});
+    console.log(`ℹ️  Chave encontrada: ${key.substring(0, 8)}...${key.substring(key.length - 4)}`);
 
-async function testConnection() {
+    const openai = new OpenAI({ apiKey: key });
+
     try {
-        const list = await openai.models.list();
-        console.log('Success! Connected to OpenAI.');
-        // console.log('Available models:', list.data.length);
-        console.log('Checking for gpt-4o...');
-        const gpt4o = list.data.find(m => m.id === 'gpt-4o');
-        if (gpt4o) {
-            console.log('GPT-4o is available!');
-        } else {
-            console.warn('GPT-4o NOT found in model list. Check key permissions.');
+        const response = await openai.models.list();
+        console.log('✅ Sucesso! Conexão estabelecida.');
+        console.log('📋 Modelos disponíveis:', response.data.slice(0, 3).map(m => m.id));
+    } catch (error: any) {
+        console.error('❌ Falha na conexão:', error.message);
+        if (error.response) {
+            console.error('Detalhes:', error.response.data);
         }
-    } catch (error) {
-        console.error('Error connecting to OpenAI:', error);
     }
 }
 
-testConnection();
+test();
