@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
 import { userService, type User, type UserProfile, type UserGoals } from '@/lib/user-service';
 
 export function useUser() {
@@ -24,8 +25,16 @@ export function useUser() {
                 setTimeout(() => reject(new Error('Timeout loading user')), 5000)
             );
 
+            // 1. Obter usuário do Supabase Auth
+            const { data: { user: sbUser } } = await supabase.auth.getUser();
+
+            if (!sbUser) {
+                setLoading(false);
+                return;
+            }
+
             const userData = await Promise.race([
-                userService.getCurrentUser(),
+                userService.getCurrentUser(sbUser.id),
                 timeoutPromise
             ]) as User | null;
 

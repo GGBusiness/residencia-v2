@@ -7,20 +7,25 @@ import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { getUserStats } from '@/lib/stats-service';
 import { supabase } from '@/lib/supabase';
+import { useUser } from '@/hooks/useUser';
 
 export default function MetasPage() {
     const router = useRouter();
+    const { user } = useUser();
     const [stats, setStats] = useState<any>(null);
     const [cutScores, setCutScores] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        loadMetas();
-    }, []);
+        if (user?.id) {
+            loadMetas();
+        }
+    }, [user?.id]);
 
     const loadMetas = async () => {
         try {
-            const userStats = await getUserStats();
+            if (!user?.id) return;
+            const userStats = await getUserStats(user.id);
             setStats(userStats);
 
             const { data: scores } = await supabase

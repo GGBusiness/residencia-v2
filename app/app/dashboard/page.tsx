@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { getUserStats, generateRecommendations, type UserStats } from '@/lib/stats-service';
 import { supabase } from '@/lib/supabase';
+import { useUser } from '@/hooks/useUser';
 
 interface CutScore {
     institution: string;
@@ -18,21 +19,25 @@ interface CutScore {
 
 export default function DashboardPage() {
     const router = useRouter();
+    const { user } = useUser();
     const [stats, setStats] = useState<UserStats | null>(null);
     const [cutScores, setCutScores] = useState<CutScore[]>([]);
     const [recommendations, setRecommendations] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        loadDashboard();
-    }, []);
+        if (user?.id) {
+            loadDashboard();
+        }
+    }, [user?.id]);
 
     const loadDashboard = async () => {
         try {
             setLoading(true);
 
             // Carregar estatísticas
-            const userStats = await getUserStats();
+            if (!user?.id) return;
+            const userStats = await getUserStats(user.id);
             setStats(userStats);
 
             // Carregar notas de corte (principais instituições)
