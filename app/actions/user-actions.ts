@@ -7,8 +7,8 @@ export async function completeOnboardingAction(userId: string, data: OnboardingD
     try {
         console.log(`[Action] Starting onboarding for user ${userId}`);
         const result = await userService.completeOnboarding(userId, data);
-        console.log(`[Action] Onboarding result: ${result}`);
-        return { success: result };
+        console.log(`[Action] Onboarding result:`, result);
+        return result;
     } catch (error: any) {
         console.error('❌ Error in completeOnboardingAction:', {
             message: error.message,

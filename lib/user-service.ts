@@ -94,70 +94,86 @@ class UserService {
     }
 
     // Completar onboarding
-    async completeOnboarding(userId: string, onboardingData: OnboardingData): Promise<boolean> {
+    async completeOnboarding(userId: string, onboardingData: OnboardingData): Promise<{ success: boolean; error?: string }> {
         try {
             console.log('🚀 Finalizando Onboarding no DigitalOcean para:', userId);
 
             // 1. Atualizar user
-            await query(`
-                INSERT INTO users (id, name, email, onboarding_completed, last_login)
-                VALUES ($1, $2, $3, TRUE, NOW())
-                ON CONFLICT (id) DO UPDATE 
-                SET name = EXCLUDED.name,
-                    email = EXCLUDED.email,
-                    onboarding_completed = TRUE,
-                    last_login = NOW()
-            `, [userId, onboardingData.name, onboardingData.email]);
+            try {
+                await query(`
+                    INSERT INTO users (id, name, email, onboarding_completed, last_login)
+                    VALUES ($1, $2, $3, TRUE, NOW())
+                    ON CONFLICT (id) DO UPDATE 
+                    SET name = EXCLUDED.name,
+                        email = EXCLUDED.email,
+                        onboarding_completed = TRUE,
+                        last_login = NOW()
+                `, [userId, onboardingData.name, onboardingData.email]);
+            } catch (err: any) {
+                console.error('Error updating main user table:', err);
+                return { success: false, error: `Erro na tabela de usuários: ${err.message}` };
+            }
 
             // 2. Upsert Perfil
-            await query(`
-                INSERT INTO user_profiles 
-                (user_id, target_institution, target_specialty, exam_timeframe, weekly_hours, has_attempted_before, theoretical_base)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-                ON CONFLICT (user_id) DO UPDATE
-                SET target_institution = EXCLUDED.target_institution,
-                    target_specialty = EXCLUDED.target_specialty,
-                    exam_timeframe = EXCLUDED.exam_timeframe,
-                    weekly_hours = EXCLUDED.weekly_hours,
-                    has_attempted_before = EXCLUDED.has_attempted_before,
-                    theoretical_base = EXCLUDED.theoretical_base
-            `, [
-                userId,
-                onboardingData.target_institution,
-                onboardingData.target_specialty,
-                onboardingData.exam_timeframe,
-                onboardingData.weekly_hours,
-                onboardingData.has_attempted_before,
-                onboardingData.theoretical_base
-            ]);
+            try {
+                await query(`
+                    INSERT INTO user_profiles 
+                    (user_id, target_institution, target_specialty, exam_timeframe, weekly_hours, has_attempted_before, theoretical_base)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    ON CONFLICT (user_id) DO UPDATE
+                    SET target_institution = EXCLUDED.target_institution,
+                        target_specialty = EXCLUDED.target_specialty,
+                        exam_timeframe = EXCLUDED.exam_timeframe,
+                        weekly_hours = EXCLUDED.weekly_hours,
+                        has_attempted_before = EXCLUDED.has_attempted_before,
+                        theoretical_base = EXCLUDED.theoretical_base
+                `, [
+                    userId,
+                    onboardingData.target_institution,
+                    onboardingData.target_specialty,
+                    onboardingData.exam_timeframe,
+                    onboardingData.weekly_hours,
+                    onboardingData.has_attempted_before,
+                    onboardingData.theoretical_base
+                ]);
+            } catch (err: any) {
+                console.error('Error updating user profile:', err);
+                return { success: false, error: `Erro no perfil: ${err.message}` };
+            }
 
             // 3. Calcular e Upsert Metas
-            const goals = this.calculateGoals(onboardingData);
-            await query(`
-                INSERT INTO user_goals 
-                (user_id, daily_hours_goal, weekly_hours_goal, target_percentage, theory_percentage, practice_percentage, focus_area)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-                ON CONFLICT (user_id) DO UPDATE
-                SET daily_hours_goal = EXCLUDED.daily_hours_goal,
-                    weekly_hours_goal = EXCLUDED.weekly_hours_goal,
-                    target_percentage = EXCLUDED.target_percentage,
-                    theory_percentage = EXCLUDED.theory_percentage,
-                    practice_percentage = EXCLUDED.practice_percentage,
-                    focus_area = EXCLUDED.focus_area
-            `, [
-                userId,
-                goals.daily_hours_goal,
-                goals.weekly_hours_goal,
-                goals.target_percentage,
-                goals.theory_percentage,
-                goals.practice_percentage,
-                goals.focus_area
-            ]);
+            try {
+                const goals = this.calculateGoals(onboardingData);
+                await query(`
+                    INSERT INTO user_goals 
+                    (user_id, daily_hours_goal, weekly_hours_goal, target_percentage, theory_percentage, practice_percentage, focus_area)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    ON CONFLICT (user_id) DO UPDATE
+                    SET daily_hours_goal = EXCLUDED.daily_hours_goal,
+                        weekly_hours_goal = EXCLUDED.weekly_hours_goal,
+                        target_percentage = EXCLUDED.target_percentage,
+                        theory_percentage = EXCLUDED.theory_percentage,
+                        practice_percentage = EXCLUDED.practice_percentage,
+                        focus_area = EXCLUDED.focus_area
+                `, [
+                    userId,
+                    goals.daily_hours_goal,
+                    goals.weekly_hours_goal,
+                    goals.target_percentage,
+                    goals.theory_percentage,
+                    goals.practice_percentage,
+                    goals.focus_area
+                ]);
+            } catch (err: any) {
+                console.error('Error updating user goals:', err);
+                return { success: false, error: `Erro nas metas: ${err.message}` };
+            }
 
-            return true;
-        } catch (error) {
-            console.error('Error completing onboarding:', error);
-            return false;
+            console.log('✅ Onboarding concluído com sucesso para:', userId);
+            return { success: true };
+        } catch (error: any) {
+            console.error('Unexpected error completing onboarding:', error);
+            return { success: false, error: error.message };
         }
     }
 
