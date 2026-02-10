@@ -1,5 +1,8 @@
-import { supabase } from './supabase';
+'use server';
 
+import { db, query } from './db';
+
+// Interfaces (Mantidas)
 export interface CutScore {
     institution: string;
     area: string;
@@ -18,106 +21,116 @@ export interface UserStats {
     statsByDifficulty: Record<string, { correct: number; total: number; percentage: number }>;
 }
 
-// Buscar nota de corte
+// Buscar nota de corte (DigitalOcean)
 export async function getCutScore(
     institution: string,
     area: string
 ): Promise<CutScore | null> {
-    const { data, error } = await supabase
-        .from('cut_scores')
-        .select('*')
-        .eq('institution', institution)
-        .eq('area', area)
-        .order('year', { ascending: false })
-        .limit(1)
-        .single();
+    try {
+        const { rows } = await query(`
+            SELECT * FROM cut_scores
+            WHERE institution = $1 AND area = $2
+            ORDER BY year DESC
+            LIMIT 1
+        `, [institution, area]);
 
-    if (error || !data) return null;
-    return data as CutScore;
+        return (rows[0] as CutScore) || null;
+    } catch (error) {
+        console.error('Error fetching cut score:', error);
+        return null;
+    }
 }
 
-// Calcular estatísticas do usuário
-export async function getUserStats(userId: string = '00000000-0000-0000-0000-000000000001'): Promise<UserStats> {
-    // Buscar todos attempts do usuário
-    const { data: attempts, error } = await supabase
-        .from('attempts')
-        .select('*, attempt_answers(*)')
-        .eq('user_id', userId)
-        .eq('status', 'COMPLETED');
+// Calcular estatísticas do usuário (DigitalOcean)
+export async function getUserStats(userId: string): Promise<UserStats> {
+    if (!userId) return emptyStats();
 
-    if (error || !attempts) {
+    try {
+        // Buscar todos attempts completados do usuário com suas respostas
+        // Otimização: Fazer agragações no SQL seria melhor, mas para compatibilidade manteremos lógica JS por enquanto
+        // ou buscar só o necessário.
+
+        // Vamos buscar só os attempts e suas respostas
+        const { rows: attempts } = await query(`
+            SELECT a.*, 
+            (
+                SELECT json_agg(aa.*)
+                FROM attempt_answers aa
+                WHERE aa.attempt_id = a.id
+            ) as answers
+            FROM attempts a
+            WHERE a.user_id = $1 AND a.status = 'COMPLETED'
+        `, [userId]);
+
+        let totalQuestions = 0;
+        let totalCorrect = 0;
+        const statsByArea: Record<string, { correct: number; total: number; percentage: number }> = {};
+        const statsByDifficulty: Record<string, { correct: number; total: number; percentage: number }> = {};
+
+        for (const attempt of attempts) {
+            const answers = attempt.answers || [];
+            // O config vem como JSON B, o pg converte pra objeto JS
+            const area = attempt.config?.area || 'geral';
+            const difficulty = attempt.config?.difficulty || 'mista';
+
+            const questionsInAttempt = answers.length;
+            // No PostgreSQL o boolean é retornado como boolean mesmo.
+            const correctInAttempt = answers.filter((a: any) => a.is_correct === true).length;
+
+            totalQuestions += questionsInAttempt;
+            totalCorrect += correctInAttempt;
+
+            // Agrupar por área
+            if (!statsByArea[area]) statsByArea[area] = { correct: 0, total: 0, percentage: 0 };
+            statsByArea[area].correct += correctInAttempt;
+            statsByArea[area].total += questionsInAttempt;
+
+            // Agrupar por dificuldade
+            if (!statsByDifficulty[difficulty]) statsByDifficulty[difficulty] = { correct: 0, total: 0, percentage: 0 };
+            statsByDifficulty[difficulty].correct += correctInAttempt;
+            statsByDifficulty[difficulty].total += questionsInAttempt;
+        }
+
+        // Calcular percentuais
+        calculatePercentages(statsByArea);
+        calculatePercentages(statsByDifficulty);
+
+        const averagePercentage = totalQuestions > 0 ? (totalCorrect / totalQuestions) * 100 : 0;
+
         return {
-            totalAttempts: 0,
-            totalQuestions: 0,
-            totalCorrect: 0,
-            averagePercentage: 0,
-            statsByArea: {},
-            statsByDifficulty: {},
+            totalAttempts: attempts.length,
+            totalQuestions,
+            totalCorrect,
+            averagePercentage,
+            statsByArea,
+            statsByDifficulty,
         };
+
+    } catch (error) {
+        console.error('Error calculating user stats:', error);
+        return emptyStats();
     }
+}
 
-    let totalQuestions = 0;
-    let totalCorrect = 0;
-    const statsByArea: Record<string, { correct: number; total: number; percentage: number }> = {};
-    const statsByDifficulty: Record<string, { correct: number; total: number; percentage: number }> = {};
-
-    // Processar cada attempt
-    for (const attempt of attempts) {
-        const answers = attempt.attempt_answers || [];
-        const area = attempt.config?.area || 'geral';
-        const difficulty = attempt.config?.difficulty || 'mista';
-
-        // Contar respostas (mocado - em produção viria do banco)
-        const questionsInAttempt = answers.length;
-        const correctInAttempt = answers.filter((a: any) => a.is_correct).length;
-
-        totalQuestions += questionsInAttempt;
-        totalCorrect += correctInAttempt;
-
-        // Agrupar por área
-        if (!statsByArea[area]) {
-            statsByArea[area] = { correct: 0, total: 0, percentage: 0 };
-        }
-        statsByArea[area].correct += correctInAttempt;
-        statsByArea[area].total += questionsInAttempt;
-
-        // Agrupar por dificuldade
-        if (!statsByDifficulty[difficulty]) {
-            statsByDifficulty[difficulty] = { correct: 0, total: 0, percentage: 0 };
-        }
-        statsByDifficulty[difficulty].correct += correctInAttempt;
-        statsByDifficulty[difficulty].total += questionsInAttempt;
-    }
-
-    // Calcular percentuais área
-    Object.keys(statsByArea).forEach(area => {
-        statsByArea[area].percentage =
-            statsByArea[area].total > 0
-                ? (statsByArea[area].correct / statsByArea[area].total) * 100
-                : 0;
-    });
-
-    // Calcular percentuais dificuldade
-    Object.keys(statsByDifficulty).forEach(diff => {
-        statsByDifficulty[diff].percentage =
-            statsByDifficulty[diff].total > 0
-                ? (statsByDifficulty[diff].correct / statsByDifficulty[diff].total) * 100
-                : 0;
-    });
-
-    const averagePercentage = totalQuestions > 0 ? (totalCorrect / totalQuestions) * 100 : 0;
-
+function emptyStats(): UserStats {
     return {
-        totalAttempts: attempts.length,
-        totalQuestions,
-        totalCorrect,
-        averagePercentage,
-        statsByArea,
-        statsByDifficulty,
+        totalAttempts: 0,
+        totalQuestions: 0,
+        totalCorrect: 0,
+        averagePercentage: 0,
+        statsByArea: {},
+        statsByDifficulty: {},
     };
 }
 
-// Calcular projeção de acertos
+function calculatePercentages(group: Record<string, { correct: number; total: number; percentage: number }>) {
+    Object.keys(group).forEach(key => {
+        const item = group[key];
+        item.percentage = item.total > 0 ? (item.correct / item.total) * 100 : 0;
+    });
+}
+
+// Calcular projeção (Helper puro, sem banco)
 export function calculateProjection(
     answeredCorrect: number,
     answeredTotal: number,
@@ -128,11 +141,10 @@ export function calculateProjection(
     return Math.round(currentPercent * totalQuestions);
 }
 
-// Gerar recomendações baseadas em performance
+// Gerar recomendações (Helper puro)
 export function generateRecommendations(stats: UserStats, cutScores: CutScore[]): string[] {
     const recommendations: string[] = [];
 
-    // Analisar cada área
     Object.entries(stats.statsByArea).forEach(([area, areaStats]) => {
         const cutScore = cutScores.find(cs => cs.area === area);
         if (!cutScore) return;
@@ -150,7 +162,6 @@ export function generateRecommendations(stats: UserStats, cutScores: CutScore[])
         }
     });
 
-    // Recomendação geral
     if (stats.averagePercentage < 60) {
         recommendations.push('💡 Sugestão: Foque em conceitos fundamentais antes de simulados complexos.');
     } else if (stats.averagePercentage < 75) {

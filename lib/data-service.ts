@@ -1,6 +1,10 @@
-import { supabase } from '@/lib/supabase';
-import { normalizeArray } from '@/lib/utils';
+'use server';
 
+import { db, query } from '@/lib/db';
+import { normalizeArray } from '@/lib/utils';
+import { unstable_noStore as noStore } from 'next/cache';
+
+// Tipos mantidos para compatibilidade
 export interface DocumentFilters {
     query?: string;
     types?: string[];
@@ -82,36 +86,23 @@ export interface Question {
     topic: string | null;
 }
 
-// Data Access Layer
+// Data Access Layer (DigitalOcean Version)
 export const dataService = {
     /**
      * Obtém filtros disponíveis baseados nos dados reais do banco
      */
     async getAvailableFilters() {
+        noStore(); // Desabilita cache estático do Next.js
         try {
-            // Buscar dados brutos para agregar (em produção ideal seria via RPC ou view)
-            const { data, error } = await supabase
-                .from('documents')
-                .select('institution, year, area')
-                .eq('type', 'PROVA');
-
-            if (error) throw error;
-
-            // Sets para valores únicos
-            const institutions = new Set<string>();
-            const years = new Set<number>();
-            const areas = new Set<string>();
-
-            data?.forEach(doc => {
-                if (doc.institution) institutions.add(doc.institution);
-                if (doc.year) years.add(doc.year);
-                if (doc.area) areas.add(doc.area);
-            });
+            // Aggregate queries
+            const { rows: institutions } = await query('SELECT DISTINCT institution FROM documents WHERE institution IS NOT NULL ORDER BY institution');
+            const { rows: years } = await query('SELECT DISTINCT year FROM documents WHERE year IS NOT NULL ORDER BY year DESC');
+            const { rows: areas } = await query('SELECT DISTINCT area FROM documents WHERE area IS NOT NULL ORDER BY area');
 
             return {
-                institutions: Array.from(institutions).sort(),
-                years: Array.from(years).sort((a, b) => b - a),
-                areas: Array.from(areas).sort()
+                institutions: institutions.map(r => r.institution),
+                years: years.map(r => r.year),
+                areas: areas.map(r => r.area)
             };
         } catch (error) {
             console.error('Error fetching available filters:', error);
@@ -121,8 +112,9 @@ export const dataService = {
 
     // Documents
     async searchDocuments(filters: DocumentFilters = {}) {
+        noStore();
         const {
-            query,
+            query: textQuery,
             types,
             years,
             program,
@@ -134,75 +126,84 @@ export const dataService = {
             limit = 20,
         } = filters;
 
-        let queryBuilder = supabase
-            .from('documents')
-            .select('*', { count: 'exact' });
+        let sql = 'SELECT * FROM documents WHERE 1=1';
+        const params: any[] = [];
+        let pIndex = 1;
 
-        if (query) {
-            queryBuilder = queryBuilder.ilike('title', `%${query}%`);
+        if (textQuery) {
+            sql += ` AND title ILIKE $${pIndex}`;
+            params.push(`%${textQuery}%`);
+            pIndex++;
         }
 
         if (types && types.length > 0) {
-            queryBuilder = queryBuilder.in('type', types);
+            sql += ` AND type = ANY($${pIndex}::text[])`;
+            params.push(types);
+            pIndex++;
         }
 
         if (years && years.length > 0) {
-            queryBuilder = queryBuilder.in('year', years);
+            sql += ` AND year = ANY($${pIndex}::int[])`;
+            params.push(years);
+            pIndex++;
         }
 
         if (program) {
-            queryBuilder = queryBuilder.or(
-                `program.ilike.%${program}%,institution.ilike.%${program}%`
-            );
+            sql += ` AND (program ILIKE $${pIndex} OR institution ILIKE $${pIndex})`;
+            params.push(`%${program}%`);
+            pIndex++;
         }
 
         if (area) {
-            queryBuilder = queryBuilder.eq('area', area);
-        }
-
-        if (tags && tags.length > 0) {
-            queryBuilder = queryBuilder.contains('tags', tags);
+            sql += ` AND area = $${pIndex}`;
+            params.push(area);
+            pIndex++;
         }
 
         if (hasAnswerKey !== undefined) {
-            queryBuilder = queryBuilder.eq('has_answer_key', hasAnswerKey);
+            sql += ` AND has_answer_key = $${pIndex}`;
+            params.push(hasAnswerKey);
+            pIndex++;
         }
+
+        // Count total before pagination
+        const countSql = `SELECT COUNT(*) as total FROM (${sql}) as sub`;
+        const { rows: countRows } = await query(countSql, params);
+        const count = parseInt(countRows[0].total);
 
         // Sorting
         const [sortField, sortDirection] = sort.split('_');
-        queryBuilder = queryBuilder.order(
-            sortField === 'year' ? 'year' : 'title',
-            { ascending: sortDirection === 'asc', nullsFirst: false }
-        );
+        const dir = sortDirection === 'asc' ? 'ASC' : 'DESC';
+        if (sortField === 'year') {
+            sql += ` ORDER BY year ${dir} NULLS LAST`;
+        } else {
+            sql += ` ORDER BY title ${dir}`;
+        }
 
         // Pagination
-        const from = (page - 1) * limit;
-        const to = from + limit - 1;
-        queryBuilder = queryBuilder.range(from, to);
+        const offset = (page - 1) * limit;
+        sql += ` LIMIT $${pIndex} OFFSET $${pIndex + 1}`;
+        params.push(limit, offset);
 
-        const { data, error, count } = await queryBuilder;
-
-        if (error) throw error;
+        const { rows } = await query(sql, params);
 
         return {
-            data: (data || []).map((doc) => ({
+            data: rows.map((doc) => ({
                 ...doc,
                 tags: normalizeArray(doc.tags),
             })) as Document[],
-            count: count || 0,
+            count: count,
             page,
-            totalPages: Math.ceil((count || 0) / limit),
+            totalPages: Math.ceil(count / limit),
         };
     },
 
     async getDocument(docId: string) {
-        const { data, error } = await supabase
-            .from('documents')
-            .select('*')
-            .eq('id', docId)
-            .single();
+        noStore();
+        const { rows } = await query('SELECT * FROM documents WHERE id = $1', [docId]);
+        const data = rows[0];
 
-        if (error) throw error;
+        if (!data) throw new Error('Document not found');
 
         return {
             ...data,
@@ -212,61 +213,45 @@ export const dataService = {
 
     // Attempts
     async createAttempt(config: AttemptConfig, userId: string) {
-        const { data, error } = await supabase
-            .from('attempts')
-            .insert({
-                user_id: userId,
-                config: config,
-                status: 'in_progress',
-                total_questions: config.questionCount || 0,
-                started_at: new Date().toISOString(),
-            })
-            .select()
-            .single();
+        // Obter user real
+        // Nota: para endpoints seguros, deveríamos validar a sessão aqui também,
+        // mas assumimos que o chamador (Page/Action) já validou.
 
-        if (error) {
-            console.error('Error creating attempt:', error);
-            throw error;
-        }
-        return data as Attempt;
+        const { rows } = await query(`
+            INSERT INTO attempts (user_id, config, status, total_questions, started_at)
+            VALUES ($1, $2, 'IN_PROGRESS', $3, NOW())
+            RETURNING *
+        `, [userId, JSON.stringify(config), config.questionCount || 0]);
+
+        return rows[0] as Attempt;
     },
 
     async getAttempt(attemptId: string) {
-        const { data, error } = await supabase
-            .from('attempts')
-            .select('*')
-            .eq('id', attemptId)
-            .single();
-
-        if (error) throw error;
-        return data as Attempt;
+        noStore();
+        const { rows } = await query('SELECT * FROM attempts WHERE id = $1', [attemptId]);
+        if (!rows[0]) throw new Error('Attempt not found');
+        return rows[0] as Attempt;
     },
 
     async finalizeAttempt(attemptId: string) {
-        const { data, error } = await supabase
-            .from('attempts')
-            .update({
-                completed_at: new Date().toISOString(),
-                status: 'COMPLETED',
-            })
-            .eq('id', attemptId)
-            .select()
-            .single();
-
-        if (error) throw error;
-        return data as Attempt;
+        const { rows } = await query(`
+            UPDATE attempts 
+            SET completed_at = NOW(), status = 'COMPLETED'
+            WHERE id = $1
+            RETURNING *
+        `, [attemptId]);
+        return rows[0] as Attempt;
     },
 
     async getUserHistory(userId: string, limit = 20) {
-        const { data, error } = await supabase
-            .from('attempts')
-            .select('*')
-            .eq('user_id', userId)
-            .order('started_at', { ascending: false })
-            .limit(limit);
-
-        if (error) throw error;
-        return (data || []) as Attempt[];
+        noStore();
+        const { rows } = await query(`
+            SELECT * FROM attempts 
+            WHERE user_id = $1 
+            ORDER BY started_at DESC
+            LIMIT $2
+        `, [userId, limit]);
+        return rows as Attempt[];
     },
 
     // Attempt Answers
@@ -274,81 +259,71 @@ export const dataService = {
         attempt_id: string;
         question_index: number;
     }) {
-        const { data, error } = await supabase
-            .from('attempt_answers')
-            .upsert(
-                {
-                    ...answer,
-                    updated_at: new Date().toISOString(),
-                },
-                {
-                    onConflict: 'attempt_id,question_index',
-                }
-            )
-            .select()
-            .single();
+        const { rows } = await query(`
+            INSERT INTO attempt_answers (attempt_id, question_index, choice, flagged, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, NOW(), NOW())
+            ON CONFLICT (attempt_id, question_index)
+            DO UPDATE SET
+                choice = EXCLUDED.choice,
+                flagged = EXCLUDED.flagged,
+                updated_at = NOW()
+            RETURNING *
+        `, [answer.attempt_id, answer.question_index, answer.choice || null, answer.flagged || false]);
 
-        if (error) throw error;
-        return data as AttemptAnswer;
+        return rows[0] as AttemptAnswer;
     },
 
     async getAttemptAnswers(attemptId: string) {
-        const { data, error } = await supabase
-            .from('attempt_answers')
-            .select('*')
-            .eq('attempt_id', attemptId)
-            .order('question_index');
-
-        if (error) throw error;
-        return (data || []) as AttemptAnswer[];
+        noStore();
+        const { rows } = await query(`
+            SELECT * FROM attempt_answers 
+            WHERE attempt_id = $1 
+            ORDER BY question_index
+        `, [attemptId]);
+        return rows as AttemptAnswer[];
     },
 
     // Questions
     async getQuestionsByDocument(documentId: string) {
-        const { data, error } = await supabase
-            .from('questions')
-            .select('*')
-            .eq('document_id', documentId)
-            .order('number_in_exam');
-
-        if (error) throw error;
-        return (data || []) as Question[];
+        noStore();
+        const { rows } = await query(`
+            SELECT * FROM questions 
+            WHERE document_id = $1 
+            ORDER BY number_in_exam
+        `, [documentId]);
+        return rows as Question[];
     },
 
     async getQuestion(questionId: string) {
-        const { data, error } = await supabase
-            .from('questions')
-            .select('*')
-            .eq('id', questionId)
-            .single();
-
-        if (error) throw error;
-        return data as Question;
+        noStore();
+        const { rows } = await query('SELECT * FROM questions WHERE id = $1', [questionId]);
+        if (!rows[0]) throw new Error('Question not found');
+        return rows[0] as Question;
     },
 
     // User Preferences
     async getUserPreferences(userId: string) {
-        const { data, error } = await supabase
-            .from('user_preferences')
-            .select('*')
-            .eq('user_id', userId)
-            .single();
-
-        if (error && error.code !== 'PGRST116') throw error;
-        return data;
+        noStore();
+        const { rows } = await query('SELECT * FROM user_preferences WHERE user_id = $1', [userId]);
+        return rows[0];
     },
 
     async updateUserPreferences(userId: string, preferences: any) {
-        const { data, error } = await supabase
-            .from('user_preferences')
-            .upsert({
-                user_id: userId,
-                ...preferences,
-            })
-            .select()
-            .single();
+        // Construir query dinâmica de update
+        const keys = Object.keys(preferences);
+        if (keys.length === 0) return null;
 
-        if (error) throw error;
-        return data;
+        const setClause = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
+        const values = keys.map(k => preferences[k]);
+
+        const { rows } = await query(`
+            INSERT INTO user_preferences (user_id, ${keys.join(', ')})
+            VALUES ($1, ${keys.map((_, i) => `$${i + 2}`).join(', ')})
+            ON CONFLICT (user_id) 
+            DO UPDATE SET ${setClause}
+            RETURNING *
+        `, [userId, ...values]);
+
+        return rows[0];
     },
 };
