@@ -1,0 +1,5 @@
+DEPLOYMENT STATUS: ONLINE
+VERSION: 0.1.4
+TIMESTAMP: 2026-02-10 T 23:59
+CHECK: If you can see this, Vercel/DigitalOcean is serving static files correctly.
+ISSUES: mismatched casing in components/ui might be killing the build.
