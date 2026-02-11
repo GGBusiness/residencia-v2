@@ -2,12 +2,17 @@ import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 // Configuração do Cliente S3 (DigitalOcean Spaces)
+// Configuração do Cliente S3 (DigitalOcean Spaces)
+if (!process.env.SPACES_KEY || !process.env.SPACES_SECRET) {
+    console.error('❌ CRITICAL: SPACES_KEY or SPACES_SECRET is missing from environment variables!');
+}
+
 const s3Client = new S3Client({
     region: process.env.SPACES_REGION || 'nyc3',
     endpoint: process.env.SPACES_ENDPOINT || 'https://nyc3.digitaloceanspaces.com',
     credentials: {
-        accessKeyId: process.env.SPACES_KEY!,
-        secretAccessKey: process.env.SPACES_SECRET!,
+        accessKeyId: process.env.SPACES_KEY || '',
+        secretAccessKey: process.env.SPACES_SECRET || '',
     },
 });
 

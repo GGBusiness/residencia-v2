@@ -15,63 +15,67 @@ export default function IntelligenceHub() {
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files || e.target.files.length === 0) return;
 
-        const file = e.target.files[0];
+        const files = Array.from(e.target.files);
         setUploading(true);
-        setProgress(10);
-        setStatus({ type: 'info', msg: 'Iniciando upload seguro para a Nuvem...' });
         setLogs([]);
 
-        try {
-            // 1. Get Presigned URL
-            const presignedResult = await getPresignedUrlAction(file.name, file.type);
+        let successCount = 0;
+        let failCount = 0;
 
-            if (!presignedResult.success || !presignedResult.data) throw new Error(presignedResult.error || 'Falha ao gerar URL.');
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const currentFileNum = i + 1;
+            const totalFiles = files.length;
 
-            const { uploadUrl, key, publicUrl } = presignedResult.data;
+            setProgress(Math.round(((currentFileNum - 1) / totalFiles) * 100));
+            setStatus({ type: 'info', msg: `[${currentFileNum}/${totalFiles}] Enviando: ${file.name}...` });
 
-            setProgress(30);
-            setStatus({ type: 'info', msg: 'Enviando arquivo para DigitalOcean Spaces...' });
+            try {
+                // 1. Get Presigned URL
+                const presignedResult = await getPresignedUrlAction(file.name, file.type);
 
-            // 2. Upload to S3 (Directly)
-            const uploadRes = await fetch(uploadUrl, {
-                method: 'PUT',
-                body: file,
-                headers: { 'Content-Type': file.type }
-            });
-
-            if (!uploadRes.ok) throw new Error('Falha no upload para o Storage.');
-
-            setProgress(60);
-            setStatus({ type: 'info', msg: 'Arquivo na nuvem! Iniciando Processamento Híbrido (IA + Banco)...' });
-
-            // 3. Trigger Unified Ingest (Server Action)
-            const ingestResult = await ingestUnifiedAction({ fileKey: key, fileName: file.name, publicUrl });
-
-            if (!ingestResult.success) throw new Error(ingestResult.error);
-
-            setProgress(100);
-            setStatus({ type: 'success', msg: 'Processamento Concluído!' });
-
-            // Format logs from result
-            if (ingestResult.results) {
-                const newLogs = [
-                    `✅ ${ingestResult.results.processedFiles} arquivos processados.`,
-                    `🧠 ${ingestResult.results.ragChunks} blocos de memória criados para a IA.`,
-                    `📝 ${ingestResult.results.questionsGenerated} questões geradas/extraídas para o Banco.`
-                ];
-                if (ingestResult.results.errors.length > 0) {
-                    newLogs.push('⚠️ Erros:', ...ingestResult.results.errors);
+                if (!presignedResult.success || !presignedResult.data) {
+                    throw new Error(presignedResult.error || 'Falha ao gerar URL.');
                 }
-                setLogs(newLogs);
-            }
 
-        } catch (error: any) {
-            console.error(error);
-            setStatus({ type: 'error', msg: error.message || 'Erro desconhecido.' });
-            setLogs(prev => [...prev, `❌ Erro: ${error.message}`]);
-        } finally {
-            setUploading(false);
+                const { uploadUrl, key, publicUrl } = presignedResult.data;
+
+                // 2. Upload to S3 (Directly)
+                const uploadRes = await fetch(uploadUrl, {
+                    method: 'PUT',
+                    body: file,
+                    headers: { 'Content-Type': file.type }
+                });
+
+                if (!uploadRes.ok) throw new Error('Falha no upload para o Storage.');
+
+                setStatus({ type: 'info', msg: `[${currentFileNum}/${totalFiles}] Processando IA: ${file.name}...` });
+
+                // 3. Trigger Unified Ingest (Server Action)
+                const ingestResult = await ingestUnifiedAction({ fileKey: key, fileName: file.name, publicUrl });
+
+                if (!ingestResult.success) throw new Error(ingestResult.error);
+
+                // Log outcome per file
+                setLogs(prev => [
+                    ...prev,
+                    `✅ [${file.name}]: ${ingestResult.results?.questionsGenerated || 0} questões, ${ingestResult.results?.ragChunks || 0} memórias.`
+                ]);
+                successCount++;
+
+            } catch (error: any) {
+                console.error(error);
+                setLogs(prev => [...prev, `❌ Erro em ${file.name}: ${error.message}`]);
+                failCount++;
+            }
         }
+
+        setProgress(100);
+        setStatus({
+            type: failCount === 0 ? 'success' : 'info',
+            msg: `Concluído! ${successCount} sucessos, ${failCount} falhas.`
+        });
+        setUploading(false);
     };
 
     return (
@@ -84,7 +88,7 @@ export default function IntelligenceHub() {
                             Central de Inteligência (Hub)
                         </h2>
                         <p className="text-sm text-indigo-600 mt-1">
-                            Arraste <b>PDFs</b> ou <b>ZIPs</b>. O sistema alimenta o Dr. IA e o Banco de Questões simultaneamente.
+                            Arraste <b>PDFs</b> ou <b>ZIPs</b> (Múltiplos arquivos suportados).
                         </p>
                     </div>
                 </div>
@@ -108,10 +112,10 @@ export default function IntelligenceHub() {
 
                         <div className="space-y-2">
                             <h3 className="text-lg font-semibold text-slate-700">
-                                {uploading ? 'Processando...' : 'Solte seus arquivos aqui'}
+                                {uploading ? 'Processando Lotes...' : 'Solte seus arquivos aqui'}
                             </h3>
                             <p className="text-slate-500 text-sm max-w-md mx-auto">
-                                Suporta <b>PDF</b> (Apostilas, Provas) e <b>ZIP</b> (Múltiplos arquivos).<br />
+                                Selecione até 100 <b>PDFs</b> ou <b>ZIPs</b> de uma vez.<br />
                                 <em>O fluxo unificado extrai questões e treina a IA automaticamente.</em>
                             </p>
                         </div>
@@ -122,12 +126,13 @@ export default function IntelligenceHub() {
                                 : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95'
                                 }`}>
                                 <Upload className="w-5 h-5" />
-                                {uploading ? 'Enviando...' : 'Selecionar Arquivos'}
+                                {uploading ? 'Enviando...' : 'Selecionar Arquivos (Múltiplos)'}
                             </span>
                             <input
                                 type="file"
                                 accept=".pdf,.zip"
                                 className="hidden"
+                                multiple
                                 onChange={handleFileUpload}
                                 disabled={uploading}
                             />
