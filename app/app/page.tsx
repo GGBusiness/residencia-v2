@@ -13,6 +13,16 @@ import {
     Plus,
     Calendar
 } from 'lucide-react';
+import {
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    ResponsiveContainer,
+    Cell
+} from 'recharts';
 import { Card, CardBody, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -112,6 +122,15 @@ export default function HomePage() {
     // Meta: 20h/semana = ~3h/dia útil
     const weeklyGoal = 20;
     const dailyGoal = 3;
+
+    // Mock names mapping for charts
+    const areaNames: Record<string, string> = {
+        'clinica': 'Clínica Médica',
+        'cirurgia': 'Cirurgia Geral',
+        'go': 'Ginecologia',
+        'pediatria': 'Pediatria',
+        'preventiva': 'Preventiva',
+    };
 
     return (
         <div className="space-y-8 animate-fade-in">
@@ -432,43 +451,48 @@ export default function HomePage() {
                             <CardTitle>Desempenho por Área</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="space-y-5">
-                                {stats?.statsByArea && Object.entries(stats.statsByArea).map(([area, areaStats]: [string, any], index) => {
-                                    const percentage = areaStats.percentage;
-                                    const colorClass = percentage >= 75 ? 'bg-green-500' : percentage >= 60 ? 'bg-yellow-500' : 'bg-red-500';
-
-                                    // Mock names mapping
-                                    const areaNames: Record<string, string> = {
-                                        'clinica': 'Clínica Médica',
-                                        'cirurgia': 'Cirurgia Geral',
-                                        'go': 'Ginecologia',
-                                        'pediatria': 'Pediatria',
-                                        'preventiva': 'Preventiva',
-                                    };
-
-                                    return (
-                                        <div key={area}>
-                                            <div className="flex justify-between items-end mb-2">
-                                                <span className="text-sm font-medium text-slate-700">
-                                                    {areaNames[area] || area}
-                                                </span>
-                                                <span className="text-sm font-bold text-slate-900">
-                                                    {percentage.toFixed(0)}%
-                                                </span>
-                                            </div>
-                                            <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                                                <div
-                                                    className={`h-full rounded-full ${colorClass}`}
-                                                    style={{ width: `${percentage}%` }}
-                                                />
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-
-                                {(!stats?.statsByArea || Object.keys(stats.statsByArea).length === 0) && (
-                                    <div className="text-center py-6 text-slate-400 text-sm">
-                                        Faça simulados para ver sua performance aqui.
+                            <div className="h-[300px] w-full">
+                                {stats?.statsByArea && Object.keys(stats.statsByArea).length > 0 ? (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            data={Object.entries(stats.statsByArea).map(([area, areaStats]: [string, any]) => ({
+                                                name: areaNames[area] || area,
+                                                score: Math.round(areaStats.percentage),
+                                                fill: areaStats.percentage >= 75 ? '#22c55e' : areaStats.percentage >= 60 ? '#eab308' : '#ef4444'
+                                            }))}
+                                            layout="vertical"
+                                            margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+                                            <XAxis type="number" domain={[0, 100]} hide />
+                                            <YAxis
+                                                type="category"
+                                                dataKey="name"
+                                                width={100}
+                                                tick={{ fontSize: 11, fill: '#64748b' }}
+                                                interval={0}
+                                            />
+                                            <Tooltip
+                                                cursor={{ fill: '#f1f5f9' }}
+                                                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                            />
+                                            <Bar
+                                                dataKey="score"
+                                                radius={[0, 4, 4, 0]}
+                                                barSize={24}
+                                            >
+                                                {
+                                                    Object.entries(stats.statsByArea).map(([area, areaStats]: [string, any], index) => (
+                                                        <Cell key={`cell-${index}`} fill={areaStats.percentage >= 75 ? '#22c55e' : areaStats.percentage >= 60 ? '#eab308' : '#ef4444'} />
+                                                    ))
+                                                }
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center h-full text-slate-400 text-sm">
+                                        <TrendingUp className="w-10 h-10 mb-3 opacity-20" />
+                                        <p>Faça simulados para ver sua performance.</p>
                                     </div>
                                 )}
                             </div>

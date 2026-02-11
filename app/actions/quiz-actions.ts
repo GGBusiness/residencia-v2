@@ -103,38 +103,18 @@ export async function getQuizDataAction(attemptId: string): Promise<{ success: b
     }
 }
 
-export async function saveAnswerAction(attemptId: string, questionId: string, answer: string, isCorrect: boolean) {
+export async function saveAnswerAction(attemptId: string, questionId: string, answer: string, isCorrect: boolean, questionIndex: number) {
     try {
-        // Need question_index or we assume questionId is enough if we change schema usage
-        // But schema uses (attempt_id, question_index) unique constraint.
-        // We need to know the index OR change schema/logic. 
-        // Let's rely on question_id for now and relax unique constraint or find index.
-        // Actually, let's just use question_id if unique constraint allows or update logic.
-        // My schema: `UNIQUE(attempt_id, question_index)`. 
-        // I should probably change UNIQUE to (attempt_id, question_id) if that's safer.
-        // Or finding index.
-
-        // Simplification: We'll Upsert by question_id if possible, or just use question_id.
-        // Let's assume we can use question_id.
-
         await query(`
-             INSERT INTO attempt_answers (attempt_id, question_id, choice, is_correct, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, NOW(), NOW())
+             INSERT INTO attempt_answers (attempt_id, question_id, choice, is_correct, question_index, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
              ON CONFLICT (attempt_id, question_index) DO UPDATE 
              SET choice = EXCLUDED.choice,
                  is_correct = EXCLUDED.is_correct,
                  updated_at = NOW()
-        `, [attemptId, questionId, answer, isCorrect]);
-        // WAIT: I don't have question_index here. I will fail unique constraint if I don't provide it?
-        // Yes I need to match the constraint. 
-        // I should probably drop the (attempt_id, question_index) constraint and add (attempt_id, question_id).
-
+        `, [attemptId, questionId, answer, isCorrect, questionIndex]);
         return { success: true };
     } catch (error) {
-        // Fallback: update constraint in next step if this fails?
-        // Or better: update schema now?
-        // I will assume for now I can pass 0 as index or fix it.
-        // Let's UPDATE the logic to find index or just change schema.
         console.error('Save Answer Error', error);
         return { success: false };
     }
