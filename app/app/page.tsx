@@ -134,10 +134,8 @@ export default function HomePage() {
 
     return (
         <div className="space-y-8 animate-fade-in">
-            {/* DEBUG BANNER - REMOVE AFTER VERIFICATION */}
-            <div className="bg-red-600 text-white p-4 rounded-xl shadow-lg text-center font-bold text-lg animate-pulse">
-                v0.1.3 - DEPLOY VERIFICATION SYSTEM ACTIVE
-            </div>
+
+
 
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

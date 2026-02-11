@@ -129,6 +129,21 @@ export default function AppRootLayout({
                             </button>
                         );
                     })}
+                    {/* Botão Perfil Mobile */}
+                    <button
+                        onClick={() => router.push('/app/perfil')}
+                        className={`flex flex-col items-center gap-1 ${pathname === '/app/perfil' ? 'text-indigo-600' : 'text-slate-400'}`}
+                    >
+                        <div className={`p-1.5 rounded-xl transition-all ${pathname === '/app/perfil' ? 'bg-indigo-50' : 'bg-transparent'}`}>
+                            <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden border border-slate-300">
+                                {user?.name ? (
+                                    <span className="text-[10px] font-bold text-slate-600">{user.name.substring(0, 2).toUpperCase()}</span>
+                                ) : (
+                                    <span className="text-[10px] font-bold text-slate-600">DR</span>
+                                )}
+                            </div>
+                        </div>
+                    </button>
                 </nav>
             </div>
 

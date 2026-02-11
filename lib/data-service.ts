@@ -107,29 +107,38 @@ export async function getAvailableFilters() {
         const areaSet = new Set([...qAreas.map(r => r.area), ...dAreas.map(r => r.area)]);
         let areas = Array.from(areaSet).filter(a => a !== 'Geral' && a !== 'Todas as áreas').sort();
 
-        // Institutions Fallback - LISTA COMPLETA
-        let institutions = instRows.map(r => r.institution);
-        const defaultInstitutions = [
-            'ENARE', 'USP', 'USP-RP', 'UNICAMP', 'SUS-SP', 'SCMSA',
-            'AMRIGS', 'PSU-MG', 'UFRJ', 'UERJ', 'UNIFESP', 'IAMSPE'
-        ];
-        // Combine DB results with defaults, remove duplicates
-        institutions = Array.from(new Set([...institutions, ...defaultInstitutions])).sort();
+        // Institutions - STRICT DB ONLY
+        let institutions = instRows.map(r => r.institution).filter(Boolean).sort();
 
-        // Years Fallback
-        let years = yearRows.map(r => r.year);
-        const defaultYears = [2026, 2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018];
-        years = Array.from(new Set([...years, ...defaultYears])).sort((a, b) => b - a);
+        // If DB is empty, use defaults just to avoid breaking UI, but prefer DB
+        if (institutions.length === 0) {
+            const defaultInstitutions = [
+                'ENARE', 'USP', 'USP-RP', 'UNICAMP', 'SUS-SP', 'SCMSA',
+                'AMRIGS', 'PSU-MG', 'UFRJ', 'UERJ', 'UNIFESP', 'IAMSPE'
+            ];
+            institutions = defaultInstitutions.sort();
+        }
 
-        // Areas Fallback
-        const defaultAreas = [
-            'Cirurgia Geral', 'Clínica Médica', 'Ginecologia e Obstetrícia',
-            'Pediatria', 'Medicina Preventiva', 'Medicina de Família e Comunidade'
-        ];
+        // Years - STRICT DB ONLY
+        let years = yearRows.map(r => r.year).filter(y => y != null).sort((a, b) => b - a);
+
+        if (years.length === 0) {
+            years = [2026, 2025, 2024, 2023, 2022, 2021, 2020];
+        }
+
+        // Areas - STRICT DB ONLY
         if (areas.length === 0) {
-            areas = defaultAreas;
+            areas = [
+                'Cirurgia Geral', 'Clínica Médica', 'Ginecologia e Obstetrícia',
+                'Pediatria', 'Medicina Preventiva', 'Medicina de Família e Comunidade'
+            ];
         } else {
-            // Ensure defaults are present
+            // Optional: still merge defaults for areas as they are standard, 
+            // but user specifically complained about Institutions/Years
+            const defaultAreas = [
+                'Cirurgia Geral', 'Clínica Médica', 'Ginecologia e Obstetrícia',
+                'Pediatria', 'Medicina Preventiva', 'Medicina de Família e Comunidade'
+            ];
             areas = Array.from(new Set([...areas, ...defaultAreas])).sort();
         }
 
