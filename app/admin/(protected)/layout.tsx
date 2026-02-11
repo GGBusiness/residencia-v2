@@ -1,14 +1,17 @@
 import { redirect } from 'next/navigation';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 
-export default async function AdminLayout({
+export default function ProtectedAdminLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
-    // Middleware (middleware.ts) now handles protection for /admin routes
-    // Verification is done via 'admin_access_token' cookie
+    const cookieStore = cookies();
+    const token = cookieStore.get('admin_access_token');
+
+    if (!token || token.value !== 'valid') {
+        redirect('/admin/login');
+    }
 
     return (
         <div className="min-h-screen bg-slate-50">
@@ -16,7 +19,11 @@ export default async function AdminLayout({
                 <div className="max-w-7xl mx-auto flex justify-between items-center">
                     <div className="font-bold text-xl flex items-center gap-2">
                         🛡️ Centro de Comando
-                        <span className="text-xs bg-slate-700 px-2 py-1 rounded text-slate-300 font-normal">v2.5 (Key Access)</span>
+                        <span className="text-xs bg-slate-700 px-2 py-1 rounded text-slate-300 font-normal">v3.0 (Secured)</span>
+                    </div>
+                    <div className="text-sm text-slate-400 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                        Admin Mode
                     </div>
                 </div>
             </nav>

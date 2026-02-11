@@ -6,9 +6,22 @@ export async function middleware(req: NextRequest) {
     const res = NextResponse.next();
     const supabase = createMiddlewareClient({ req, res });
 
-    // Refresh session if expired - required for Server Components
-    // https://supabase.com/docs/guides/auth/auth-helpers/nextjs#middleware
+    // 1. Refresh session (Standard Supabase)
     await supabase.auth.getSession();
+
+    // 2. Admin Protection (Custom Cookie)
+    const path = req.nextUrl.pathname;
+
+    // Se for rota /admin (e não for login), verifica o cookie
+    if (path.startsWith('/admin') && !path.startsWith('/admin/login')) {
+        const adminCookie = req.cookies.get('admin_access_token');
+        const isValid = adminCookie?.value === 'valid';
+
+        if (!isValid) {
+            // Se não tiver cookie, redireciona para login
+            return NextResponse.redirect(new URL('/admin/login', req.url));
+        }
+    }
 
     return res;
 }
