@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Plus, Calendar as CalendarIcon, Check, X } from 'lucide-react';
+import { ArrowLeft, Plus, Calendar as CalendarIcon, Check, X, Target } from 'lucide-react';
 import { Card, CardBody } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -28,7 +28,7 @@ import { ConfirmationModal } from '@/components/ui/modal';
 
 export default function PlannerPage() {
     const router = useRouter();
-    const { firstName, user } = useUser();
+    const { firstName, user, profile, goals } = useUser();
     const [events, setEvents] = useState<StudyEvent[]>([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
@@ -293,6 +293,23 @@ export default function PlannerPage() {
                             </Button>
                         </div>
                     </div>
+
+                    {/* Banner de Metas Personalizadas */}
+                    {profile && goals && (
+                        <div className="mt-6 flex flex-wrap gap-4 items-center bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                            <div className="flex items-center gap-2 px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full text-sm font-medium">
+                                <Target className="w-4 h-4" />
+                                Foco: {profile.target_institution} - {profile.target_specialty}
+                            </div>
+                            <div className="flex items-center gap-2 px-3 py-1 bg-green-50 text-green-700 rounded-full text-sm font-medium">
+                                <CalendarIcon className="w-4 h-4" />
+                                Meta: {goals.weekly_hours_goal}h/semana
+                            </div>
+                            <div className="flex-1 text-right text-xs text-slate-500 hidden md:block">
+                                Horário de Ouro: <span className="capitalize">{profile.best_study_time}</span>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Form Modal */}
@@ -520,9 +537,26 @@ export default function PlannerPage() {
                                                 ))}
                                             </div>
                                         ) : (
-                                            <p className="text-center text-gray-400 py-4">
-                                                Nenhuma sessão agendada
-                                            </p>
+                                            <div className="text-center py-10 px-4">
+                                                <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                    <SparklesIcon className="w-8 h-8 text-purple-600" />
+                                                </div>
+                                                <h3 className="text-lg font-bold text-gray-900 mb-2">
+                                                    Nenhuma sessão agendada
+                                                </h3>
+                                                <p className="text-gray-600 max-w-sm mx-auto mb-6">
+                                                    {profile
+                                                        ? `Vamos criar um plano de estudos focado em ${profile.target_specialty} na ${profile.target_institution}?`
+                                                        : 'Que tal deixar nossa IA organizar sua rotina de estudos?'}
+                                                </p>
+                                                <Button
+                                                    onClick={handleGenerateSchedule}
+                                                    variant="primary"
+                                                    disabled={generating}
+                                                >
+                                                    {generating ? 'Criando seu plano...' : 'Criar Cronograma Personalizado'}
+                                                </Button>
+                                            </div>
                                         )}
                                     </div>
                                 );

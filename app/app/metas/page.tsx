@@ -69,40 +69,53 @@ export default function MetasPage() {
                 </p>
             </div>
 
-            {/* Resumo */}
-            {stats && stats.totalAttempts > 0 && (
-                <Card className="mb-8 bg-gradient-to-r from-primary-600 to-purple-600 text-white">
-                    <CardBody className="p-6">
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                            <div>
-                                <p className="text-white/80 text-sm mb-1">Sua Média</p>
-                                <p className="text-3xl font-bold">{stats.averagePercentage.toFixed(0)}%</p>
-                            </div>
-                            <div>
-                                <p className="text-white/80 text-sm mb-1">Provas Feitas</p>
-                                <p className="text-3xl font-bold">{stats.totalAttempts}</p>
-                            </div>
-                            <div>
-                                <p className="text-white/80 text-sm mb-1">Horário de Ouro</p>
-                                <p className="text-3xl font-bold capitalize">
-                                    {(user as any)?.best_study_time || '-----'}
-                                </p>
-                            </div>
-                            <div>
-                                <p className="text-white/80 text-sm mb-1">Meta ENARE</p>
-                                <p className="text-3xl font-bold">72%</p>
-                            </div>
-                            <div>
-                                <p className="text-white/80 text-sm mb-1">Diferença</p>
-                                <p className="text-3xl font-bold">
-                                    {stats.averagePercentage >= 72 ? '+' : ''}
-                                    {(stats.averagePercentage - 72).toFixed(0)}%
-                                </p>
-                            </div>
+            {/* Resumo Personalizado */}
+            <Card className="mb-8 bg-gradient-to-r from-primary-600 to-purple-600 text-white">
+                <CardBody className="p-6">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                            <p className="text-white/80 text-sm mb-1">Instituição Alvo</p>
+                            <p className="text-2xl font-bold truncate">
+                                {(user as any)?.profile?.target_institution || 'Definir'}
+                            </p>
                         </div>
-                    </CardBody>
-                </Card>
+                        <div>
+                            <p className="text-white/80 text-sm mb-1">Especialidade</p>
+                            <p className="text-xl font-bold truncate">
+                                {(user as any)?.profile?.target_specialty || 'Definir'}
+                            </p>
+                        </div>
+                        <div>
+                            <p className="text-white/80 text-sm mb-1">Meta Semanal</p>
+                            <p className="text-3xl font-bold">
+                                {(user as any)?.goals?.weekly_hours || 0}h
+                            </p>
+                        </div>
+                        <div>
+                            <p className="text-white/80 text-sm mb-1">Sua Média Atual</p>
+                            <p className="text-3xl font-bold">
+                                {stats?.averagePercentage?.toFixed(0) || 0}%
+                            </p>
+                        </div>
+                    </div>
+                </CardBody>
+            </Card>
+
+            {/* Dica Personalizada baseada no Perfil */}
+            {(user as any)?.profile?.theoretical_base === 'fraca' && (
+                <div className="mb-8 bg-orange-50 border border-orange-200 p-4 rounded-xl flex items-center gap-3">
+                    <div className="bg-orange-100 p-2 rounded-lg">
+                        <TrendingUp className="w-6 h-6 text-orange-600" />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-orange-900">Foco em Base Teórica</h3>
+                        <p className="text-orange-800 text-sm">
+                            Como sua base é inicial, o sistema priorizará questões comentadas e aulas teóricas no seu planner.
+                        </p>
+                    </div>
+                </div>
             )}
+
 
             {/* Metas por Instituição */}
             <div className="space-y-6">

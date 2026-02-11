@@ -417,17 +417,31 @@ export default function MontaProvasPage() {
                 )}
 
                 {step === 'feedback' && (
-                    <div className="grid grid-cols-2 gap-4">
-                        <Card hover onClick={() => handleChoice('Modo Prova', 'PROVA')} className="cursor-pointer border-2 border-indigo-100 hover:border-indigo-500">
-                            <CardBody className="p-6 text-center">
-                                <Target className="w-8 h-8 mx-auto text-indigo-600 mb-2" />
-                                <h3 className="font-bold">Modo Prova</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Card hover onClick={() => handleChoice('Modo Prova', 'PROVA')} className="cursor-pointer border-2 border-indigo-100 hover:border-indigo-500 transition-all hover:shadow-md group">
+                            <CardBody className="p-6 text-center h-full flex flex-col items-center justify-center">
+                                <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mb-4 group-hover:bg-indigo-200 transition-colors">
+                                    <Target className="w-8 h-8 text-indigo-600" />
+                                </div>
+                                <h3 className="text-xl font-bold text-gray-900 mb-2">Modo Prova</h3>
+                                <p className="text-gray-600 text-sm">
+                                    Simulação real de exame. Cronômetro ligado e resultado apenas no final. Ideal para testar conhecimentos.
+                                </p>
                             </CardBody>
                         </Card>
-                        <Card hover onClick={() => handleChoice('Modo Estudo', 'ESTUDO')} className="cursor-pointer border-2 border-indigo-100 hover:border-indigo-500">
-                            <CardBody className="p-6 text-center">
-                                <Zap className="w-8 h-8 mx-auto text-yellow-500 mb-2" />
-                                <h3 className="font-bold">Modo Estudo</h3>
+
+                        <Card hover onClick={() => handleChoice('Modo Estudo', 'ESTUDO')} className="cursor-pointer border-2 border-indigo-100 hover:border-amber-400 transition-all hover:shadow-md group">
+                            <CardBody className="p-6 text-center h-full flex flex-col items-center justify-center">
+                                <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mb-4 group-hover:bg-amber-200 transition-colors">
+                                    <Zap className="w-8 h-8 text-amber-600" />
+                                </div>
+                                <div className="flex items-center gap-2 justify-center mb-2">
+                                    <h3 className="text-xl font-bold text-gray-900">Modo Estudo</h3>
+                                    <Badge variant="warning">Recomendado</Badge>
+                                </div>
+                                <p className="text-gray-600 text-sm">
+                                    Foco no aprendizado. Comentários e gabarito imediatos após cada questão. Sem pressão de tempo.
+                                </p>
                             </CardBody>
                         </Card>
                     </div>
