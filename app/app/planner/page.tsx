@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Plus, Calendar as CalendarIcon, Check, X } from 'lucide-react';
-import { Card, CardBody } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
+import { Card, CardBody } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
 import { useUser } from '@/hooks/useUser';
 import { generateScheduleAction } from '@/app/actions/planner-actions';
@@ -24,7 +24,7 @@ interface StudyEvent {
     completed: boolean;
 }
 
-import { ConfirmationModal } from '@/components/ui/Modal';
+import { ConfirmationModal } from '@/components/ui/modal';
 
 export default function PlannerPage() {
     const router = useRouter();

@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { Upload, FileText, CheckCircle2, AlertCircle, Loader2, Brain, Database } from 'lucide-react';
-import { Card, CardBody } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
+import { Card, CardBody } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { ingestKnowledgeFile } from '@/lib/data-service';
 
 export default function KnowledgeHub() {
@@ -64,7 +64,7 @@ export default function KnowledgeHub() {
                         <CardBody className="p-12 text-center">
                             <div className="flex flex-col items-center">
                                 <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 transition-colors ${status === 'success' ? 'bg-green-100 text-green-600' :
-                                        status === 'error' ? 'bg-red-100 text-red-600' : 'bg-indigo-100 text-indigo-600'
+                                    status === 'error' ? 'bg-red-100 text-red-600' : 'bg-indigo-100 text-indigo-600'
                                     }`}>
                                     {status === 'idle' && <Upload className="w-10 h-10" />}
                                     {(status === 'uploading' || status === 'processing') && <Loader2 className="w-10 h-10 animate-spin" />}
@@ -104,8 +104,8 @@ export default function KnowledgeHub() {
 
                                     {message && (
                                         <div className={`mt-4 p-4 rounded-xl text-sm font-medium ${status === 'success' ? 'bg-green-50 text-green-700 border border-green-200' :
-                                                status === 'error' ? 'bg-red-50 text-red-700 border border-red-200' :
-                                                    'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                            status === 'error' ? 'bg-red-50 text-red-700 border border-red-200' :
+                                                'bg-indigo-50 text-indigo-700 border border-indigo-200'
                                             }`}>
                                             {message}
                                         </div>

@@ -3,9 +3,9 @@
 
 import { useState, useEffect } from 'react';
 import { Sparkles, Send, ChevronRight, Zap, Target, Brain } from 'lucide-react';
-import { Card, CardBody } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
+import { Card, CardBody } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
 import { getAvailableFilters, createAttempt, type AttemptConfig } from '@/lib/data-service';
 import { useUser } from '@/hooks/useUser';

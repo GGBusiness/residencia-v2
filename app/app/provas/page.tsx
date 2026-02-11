@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { Search, Filter, ChevronDown } from 'lucide-react';
-import { Card, CardBody } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
-import { CardSkeleton } from '@/components/ui/Skeleton';
+import { Card, CardBody } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { CardSkeleton } from '@/components/ui/skeleton';
 import { searchDocuments, type Document } from '@/lib/data-service';
 import { debounce } from '@/lib/utils';
 import Link from 'next/link';

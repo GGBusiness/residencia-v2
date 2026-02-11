@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { Card, CardBody } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
+import { Card, CardBody } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Sparkles, Mail, Lock } from 'lucide-react';
 import Link from 'next/link';
 

@@ -13,9 +13,9 @@ import {
     Plus,
     Calendar
 } from 'lucide-react';
-import { Card, CardBody, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
+import { Card, CardBody, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
 import { useUser } from '@/hooks/useUser';
 import { getDashboardDataAction } from '@/app/actions/study-actions';

@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { Card, CardBody } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
+import { Card, CardBody } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { type OnboardingData } from '@/lib/user-service';
 import { completeOnboardingAction } from '@/app/actions/user-actions';
 import { ArrowRight, ArrowLeft, CheckCircle2, Sparkles } from 'lucide-react';

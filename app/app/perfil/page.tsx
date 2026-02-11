@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useUser } from '@/hooks/useUser';
-import { Card, CardBody } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
+import { Card, CardBody } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { User, Clock, Target, Save, CheckCircle2 } from 'lucide-react';
 import { updateUserDataAction, updateProfileSettingsAction, updateUserGoalsAction } from '@/app/actions/user-actions';
 

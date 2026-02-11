@@ -3,9 +3,9 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardBody } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
+import { Card, CardBody } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { getReviewStatsAction, startReviewSessionAction } from '@/app/actions/study-actions';
 import { supabase } from '@/lib/supabase';
 import { Brain, Calendar, CheckCircle2, Clock, Play } from 'lucide-react';
