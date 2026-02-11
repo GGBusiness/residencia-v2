@@ -25,6 +25,9 @@ export function useUser() {
             setLoading(true);
             setError(null);
 
+            // Helper para data
+            const circleDate = (d: string) => d || new Date().toISOString();
+
             // Timeout de 5 segundos
             const timeoutPromise = new Promise((_, reject) =>
                 setTimeout(() => reject(new Error('Timeout loading user')), 5000)
@@ -38,27 +41,57 @@ export function useUser() {
                 return;
             }
 
+            // Tentar obter do Banco de Dados
             const result = await Promise.race([
                 getCurrentUserAction(sbUser.id),
                 timeoutPromise
             ]) as any;
 
-            if (result.success && result.data) {
-                const userData = result.data;
-                setUser(userData);
+            let finalUser = null;
 
-                // Carregar profile e goals em paralelo
+            if (result.success && result.data) {
+                // Usuário existe no banco
+                finalUser = result.data;
+            } else {
+                // Usuário não existe no banco (ou erro), usar metadados do Auth (Fallback)
+                console.log('User not found in DB, using Auth metadata');
+                const meta = sbUser.user_metadata || {};
+                finalUser = {
+                    id: sbUser.id,
+                    email: sbUser.email || '',
+                    name: meta.full_name || meta.name || sbUser.email?.split('@')[0] || 'Doutor(a)',
+                    onboarding_completed: false,
+                    created_at: circleDate(sbUser.created_at),
+                    last_login: new Date().toISOString()
+                };
+
+                // Tentar sincronizar/criar usuário no banco silenciosamente
+                // (Para que na próxima vez ele exista)
                 try {
-                    const [pResult, gResult] = await Promise.all([
-                        getUserProfileAction(userData.id),
-                        getUserGoalsAction(userData.id),
-                    ]);
-                    if (pResult.success && pResult.data) setProfile(pResult.data);
-                    if (gResult.success && gResult.data) setGoals(gResult.data);
+                    // Importar dinamicamente para evitar erro de ciclo se houver
+                    const { updateUserDataAction } = await import('@/app/actions/user-actions');
+                    await updateUserDataAction(sbUser.id, { name: finalUser.name });
                 } catch (err) {
-                    console.warn('Could not load profile/goals:', err);
+                    console.warn('Background user sync failed', err);
                 }
             }
+
+            setUser(finalUser);
+
+            // Carregar profile e goals em paralelo
+            try {
+                const [pResult, gResult] = await Promise.all([
+                    getUserProfileAction(finalUser.id),
+                    getUserGoalsAction(finalUser.id),
+                ]);
+                if (pResult.success && pResult.data) setProfile(pResult.data);
+                if (gResult.success && gResult.data) setGoals(gResult.data);
+            } catch (err) {
+                console.warn('Could not load profile/goals:', err);
+            }
+
+
+
         } catch (error) {
             console.error('Error loading user data:', error);
             setError(error instanceof Error ? error.message : 'Unknown error');
