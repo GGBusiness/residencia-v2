@@ -2,14 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useUser } from '@/hooks/useUser';
-import { Card, CardBody } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { User, Clock, Target, Save, CheckCircle2 } from 'lucide-react';
 import { updateUserDataAction, updateProfileSettingsAction, updateUserGoalsAction } from '@/app/actions/user-actions';
 
 // Simple Tabs Component
 const Tabs = ({ tabs, activeTab, onChange }: { tabs: { id: string; label: string; icon: any }[]; activeTab: string; onChange: (id: string) => void }) => (
-    <div className="flex gap-2 overflow-x-auto pb-2 border-b border-gray-200 mb-6">
+    <div className="flex gap-2 overflow-x-auto pb-2 mb-0">
         {tabs.map((tab) => (
             <button
                 key={tab.id}
@@ -82,14 +81,58 @@ export default function ProfilePage() {
     }
 
     return (
-        <div className="max-w-4xl mx-auto space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold text-gray-900">Meu Perfil</h1>
-                <p className="text-gray-500">Gerencie seus dados e preferências de estudo.</p>
+        <div className="max-w-4xl mx-auto space-y-8">
+            {/* Premium Medical ID Header */}
+            <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-8 opacity-10">
+                    <Target className="w-64 h-64 text-white" />
+                </div>
+
+                <div className="relative z-10 flex flex-col md:flex-row items-center md:items-start gap-6">
+                    <div className="relative group cursor-pointer">
+                        <div className="w-24 h-24 md:w-32 md:h-32 rounded-2xl bg-white/20 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center text-4xl font-bold text-white shadow-lg overflow-hidden transition-all group-hover:scale-105">
+                            {user?.name ? user.name.substring(0, 2).toUpperCase() : 'DR'}
+                        </div>
+                        <div className="absolute bottom-2 right-2 w-8 h-8 bg-green-500 rounded-full border-4 border-indigo-700 flex items-center justify-center">
+                            <CheckCircle2 className="w-4 h-4 text-white" />
+                        </div>
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl">
+                            <span className="text-xs font-bold">ALTERAR</span>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 text-center md:text-left space-y-2">
+                        <div className="flex items-center justify-center md:justify-start gap-2">
+                            <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase border border-white/20">
+                                Resident PRO
+                            </span>
+                            <span className="bg-indigo-900/40 px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase border border-white/10 flex items-center gap-1">
+                                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                                Ativo
+                            </span>
+                        </div>
+                        <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
+                            {user?.name || 'Doutor(a)'}
+                        </h1>
+                        <p className="text-indigo-100 text-lg flex items-center justify-center md:justify-start gap-2">
+                            <span>{user?.email}</span>
+                        </p>
+                        <div className="pt-4 flex flex-wrap justify-center md:justify-start gap-4 text-sm text-indigo-200">
+                            <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl">
+                                <Clock className="w-4 h-4" />
+                                <span>Membro desde 2024</span>
+                            </div>
+                            <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl">
+                                <Target className="w-4 h-4" />
+                                <span>Foco: R1 Acesso Direto</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <Card>
-                <CardBody className="p-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="p-2 bg-slate-50 border-b border-slate-200">
                     <Tabs
                         activeTab={activeTab}
                         onChange={setActiveTab}
@@ -99,8 +142,10 @@ export default function ProfilePage() {
                             { id: 'metas', label: 'Minhas Metas', icon: Target },
                         ]}
                     />
+                </div>
 
-                    <div className="space-y-6 max-w-xl">
+                <div className="p-6 md:p-8">
+                    <div className="space-y-6 max-w-xl mx-auto md:mx-0">
                         {activeTab === 'dados' && (
                             <div className="space-y-4 animate-slide-up">
                                 <div>
@@ -109,7 +154,7 @@ export default function ProfilePage() {
                                         type="text"
                                         value={formData.name}
                                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                        className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                        className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2.5 bg-white border"
                                     />
                                 </div>
                                 <div>
@@ -118,7 +163,7 @@ export default function ProfilePage() {
                                         type="email"
                                         value={formData.email}
                                         disabled
-                                        className="w-full rounded-lg border-gray-300 bg-gray-50 text-gray-500 cursor-not-allowed shadow-sm"
+                                        className="w-full rounded-lg border-gray-300 bg-gray-50 text-gray-500 cursor-not-allowed shadow-sm p-2.5 border"
                                     />
                                     <p className="text-xs text-gray-400 mt-1">O e-mail não pode ser alterado.</p>
                                 </div>
@@ -191,29 +236,29 @@ export default function ProfilePage() {
                             </div>
                         )}
 
-                        <div className="pt-4 flex items-center gap-4">
+                        <div className="pt-4 flex items-center gap-4 border-t border-slate-100 mt-8">
                             <Button
                                 onClick={handleSave}
                                 disabled={saving}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-8"
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 h-12 text-base rounded-xl shadow-lg shadow-indigo-200"
                             >
                                 {saving ? 'Salvando...' : (
                                     <>
-                                        <Save className="w-4 h-4 mr-2" />
+                                        <Save className="w-5 h-5 mr-2" />
                                         Salvar Alterações
                                     </>
                                 )}
                             </Button>
                             {successMsg && (
-                                <div className="flex items-center text-green-600 text-sm font-medium animate-fade-in">
+                                <div className="flex items-center text-green-600 text-sm font-medium animate-fade-in bg-green-50 px-4 py-2 rounded-lg">
                                     <CheckCircle2 className="w-4 h-4 mr-1.5" />
                                     {successMsg}
                                 </div>
                             )}
                         </div>
                     </div>
-                </CardBody>
-            </Card>
+                </div>
+            </div>
         </div>
     );
 }
