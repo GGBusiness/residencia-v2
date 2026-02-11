@@ -5,21 +5,16 @@ import { Card, CardBody, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Activity, Upload, DollarSign, Users, Database, FileText, TrendingUp, Clock, UserPlus, BrainCircuit } from 'lucide-react';
 import { getAdminStatsAction, getAdminCostsAction, setupAdminSchemaAction } from '@/app/actions/admin-actions';
-import { ingestPDFAction } from '@/app/actions/admin-ingest';
 import { logoutAdminAction } from '@/app/actions/admin-auth';
 import { useRouter } from 'next/navigation';
-import KnowledgeBaseTab from './knowledge/KnowledgeTab';
+import IntelligenceHub from './knowledge/IntelligenceHub';
 
 export default function AdminDashboard() {
     const router = useRouter();
-    const [activeTab, setActiveTab] = useState<'overview' | 'content' | 'finance' | 'knowledge'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'intelligence' | 'finance'>('overview');
     const [stats, setStats] = useState<any>(null);
     const [costs, setCosts] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-
-    // Upload State
-    const [uploading, setUploading] = useState(false);
-    const [uploadMsg, setUploadMsg] = useState('');
 
     useEffect(() => {
         const fetchStats = async () => {
@@ -56,30 +51,7 @@ export default function AdminDashboard() {
         router.push('/admin/login');
     };
 
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!e.target.files || e.target.files.length === 0) return;
 
-        const file = e.target.files[0];
-        setUploading(true);
-        setUploadMsg(`Processando ${file.name}... (Isso pode demorar uns 30s)`);
-
-        try {
-            const formData = new FormData();
-            formData.append('file', file);
-
-            const result = await ingestPDFAction(formData);
-
-            if (result.success) {
-                setUploadMsg(`✅ Sucesso! ${result.count} questões importadas.`);
-            } else {
-                setUploadMsg(`❌ Erro: ${result.error}`);
-            }
-        } catch (error) {
-            setUploadMsg('❌ Erro inesperado no upload.');
-        } finally {
-            setUploading(false);
-        }
-    };
 
     return (
         <div className="space-y-6">
@@ -97,18 +69,11 @@ export default function AdminDashboard() {
                         <Activity className="w-4 h-4" /> Visão Geral
                     </Button>
                     <Button
-                        variant={activeTab === 'content' ? 'primary' : 'outline'}
-                        onClick={() => setActiveTab('content')}
+                        variant={activeTab === 'intelligence' ? 'primary' : 'outline'}
+                        onClick={() => setActiveTab('intelligence')}
                         className="gap-2"
                     >
-                        <Upload className="w-4 h-4" /> Conteúdo (IA)
-                    </Button>
-                    <Button
-                        variant={activeTab === 'knowledge' ? 'primary' : 'outline'}
-                        onClick={() => setActiveTab('knowledge')}
-                        className="gap-2"
-                    >
-                        <BrainCircuit className="w-4 h-4" /> Treinamento (RAG)
+                        <BrainCircuit className="w-4 h-4" /> Central de Inteligência
                     </Button>
                     <Button
                         variant={activeTab === 'finance' ? 'primary' : 'outline'}
@@ -262,57 +227,9 @@ export default function AdminDashboard() {
                 </div>
             )}
 
-            {/* TAB: CONTENT (PDF Upload - Old) */}
-            {activeTab === 'content' && (
-                <Card>
-                    <CardHeader className="border-b bg-slate-50 p-6">
-                        <h2 className="text-xl font-bold flex items-center gap-2">
-                            <FileText className="w-5 h-5 text-indigo-600" />
-                            Ingestão de Provas (Extração de Questões)
-                        </h2>
-                    </CardHeader>
-                    <CardBody className="p-8 border-2 border-dashed border-slate-300 rounded-b-xl m-6 bg-slate-50 transition-colors">
-                        <div className="flex flex-col items-center gap-4 text-center">
-                            <div className="p-4 bg-white rounded-full shadow-sm">
-                                <Upload className="w-10 h-10 text-slate-400" />
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-semibold text-slate-700">Selecione o PDF da Prova</h3>
-                                <p className="text-slate-500 text-sm mt-1">
-                                    Processamento automático com GPT-4o.<br />
-                                    Extrai questões, gabarito e gera embeddings.
-                                </p>
-                            </div>
-
-                            <label className="cursor-pointer inline-block">
-                                <span className={`inline-flex items-center justify-center font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 px-4 py-2 text-base bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800 ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                    {uploading ? 'Processando (Aguarde)...' : 'Selecionar Arquivo'}
-                                </span>
-                                <input
-                                    type="file"
-                                    accept=".pdf"
-                                    className="hidden"
-                                    onChange={handleFileUpload}
-                                    disabled={uploading}
-                                />
-                            </label>
-
-                            {uploadMsg && (
-                                <div className={`mt-4 p-3 rounded-lg text-sm font-medium ${uploadMsg.includes('Sucesso') ? 'bg-green-100 text-green-700' :
-                                    uploadMsg.includes('Erro') ? 'bg-red-100 text-red-700' :
-                                        'bg-blue-100 text-blue-700'
-                                    }`}>
-                                    {uploadMsg}
-                                </div>
-                            )}
-                        </div>
-                    </CardBody>
-                </Card>
-            )}
-
-            {/* TAB: KNOWLEDGE BASE (New RAG) */}
-            {activeTab === 'knowledge' && (
-                <KnowledgeBaseTab />
+            {/* TAB: UNIFIED INTELLIGENCE HUB */}
+            {activeTab === 'intelligence' && (
+                <IntelligenceHub />
             )}
 
             {/* TAB: FINANCE */}
