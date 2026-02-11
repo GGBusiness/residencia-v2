@@ -29,6 +29,10 @@ const INITIAL_AREAS = [
     { id: 'Medicina Preventiva', label: 'Preventiva', icon: '🛡️' },
 ];
 
+// Validated lists from user preference
+const ALLOWED_PROGRAMS = ['ENARE', 'USP', 'UNICAMP', 'SUS-SP', 'PSU-MG', 'UFRJ', 'UNIFESP'];
+const ALLOWED_YEARS = [2026, 2025, 2024, 2023, 2022, 2021, 2020];
+
 const QUESTOES_OPTIONS = [15, 30, 60, 90, 120];
 
 export default function MontaProvasPage() {
@@ -38,13 +42,8 @@ export default function MontaProvasPage() {
     const [loadingFilters, setLoadingFilters] = useState(true);
 
     // Dynamic Filters State (Initialized with safe defaults)
-    const [availablePrograms, setAvailablePrograms] = useState<string[]>([
-        'ENARE', 'USP', 'USP-RP', 'UNICAMP', 'SUS-SP', 'SCMSA',
-        'AMRIGS', 'PSU-MG', 'UFRJ', 'UERJ', 'UNIFESP', 'IAMSPE'
-    ]);
-    const [availableYears, setAvailableYears] = useState<number[]>([
-        2026, 2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018
-    ]);
+    const [availablePrograms, setAvailablePrograms] = useState<string[]>(ALLOWED_PROGRAMS);
+    const [availableYears, setAvailableYears] = useState<number[]>(ALLOWED_YEARS);
     const [availableAreas, setAvailableAreas] = useState<string[]>([
         'Cirurgia Geral', 'Clínica Médica', 'Ginecologia e Obstetrícia',
         'Pediatria', 'Medicina Preventiva', 'Medicina de Família e Comunidade'
@@ -78,8 +77,18 @@ export default function MontaProvasPage() {
             try {
                 const filters = await getAvailableFilters();
                 if (filters) {
-                    setAvailablePrograms(filters.institutions);
-                    setAvailableYears(filters.years);
+                    // Filter backend institutions to only show user-approved ones
+                    const filteredInstitutions = filters.institutions.filter(inst =>
+                        ALLOWED_PROGRAMS.includes(inst)
+                    );
+                    setAvailablePrograms(filteredInstitutions.length > 0 ? filteredInstitutions : ALLOWED_PROGRAMS);
+
+                    // Filter backend years to only show user-approved ones (2020-2026)
+                    const filteredYears = filters.years.filter(year =>
+                        ALLOWED_YEARS.includes(year)
+                    );
+                    setAvailableYears(filteredYears.length > 0 ? filteredYears : ALLOWED_YEARS);
+
                     setAvailableAreas(filters.areas);
                 }
             } catch (error) {
