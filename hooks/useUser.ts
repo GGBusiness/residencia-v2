@@ -81,5 +81,6 @@ export function useUser() {
         error,
         firstName: getFirstName(),
         isOnboarded: user?.onboarding_completed || false,
+        refreshUser: loadUserData,
     };
 }

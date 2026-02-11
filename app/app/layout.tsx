@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { Home, Sparkles, Calendar, Target, History, Repeat, Database } from 'lucide-react';
 import { ChatWidget } from '@/components/ai/ChatWidget';
+import { useUser } from '@/hooks/useUser';
 
 export default function AppRootLayout({
     children,
@@ -20,6 +21,8 @@ export default function AppRootLayout({
         { id: 'metas', label: 'Metas', icon: Target, path: '/app/metas' },
         { id: 'historico', label: 'Histórico', icon: History, path: '/app/historico' },
     ];
+
+    const { user } = useUser();
 
     return (
         <div className="flex min-h-screen bg-slate-50">
@@ -60,16 +63,18 @@ export default function AppRootLayout({
                 </nav>
 
                 <div className="p-6 border-t border-slate-100 bg-slate-50/50">
-                    <div className="flex items-center gap-3 p-3 rounded-xl bg-white border border-slate-200 shadow-sm">
-                        <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold">
-                            {/* User Initials Placeholder */}
-                            DR
+                    <button
+                        onClick={() => router.push('/app/perfil')}
+                        className="w-full flex items-center gap-3 p-3 rounded-xl bg-white border border-slate-200 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer text-left"
+                    >
+                        <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold shrink-0">
+                            {user?.name ? user.name.substring(0, 2).toUpperCase() : 'DR'}
                         </div>
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-slate-900 truncate">Doutor(a)</p>
-                            <p className="text-xs text-slate-500 truncate">Plano Premium</p>
+                            <p className="text-sm font-bold text-slate-900 truncate">{user?.name || 'Doutor(a)'}</p>
+                            <p className="text-xs text-slate-500 truncate">Configurações & Perfil</p>
                         </div>
-                    </div>
+                    </button>
                 </div>
             </aside>
 

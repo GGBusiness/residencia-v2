@@ -180,6 +180,57 @@ class UserService {
         }
     }
 
+    // Atualizar dados do usuário (tabela users)
+    async updateUser(userId: string, data: Partial<User>): Promise<boolean> {
+        try {
+            const fields = Object.keys(data).filter(k => k !== 'id' && k !== 'email'); // Email usually managed by Auth provider, restricting for now
+            if (fields.length === 0) return false;
+
+            const setClause = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');
+            const values = fields.map(f => (data as any)[f]);
+
+            await query(`UPDATE users SET ${setClause} WHERE id = $1`, [userId, ...values]);
+            return true;
+        } catch (error) {
+            console.error('Error updating user:', error);
+            throw error;
+        }
+    }
+
+    // Atualizar perfil (tabela user_profiles)
+    async updateProfile(userId: string, data: Partial<UserProfile>): Promise<boolean> {
+        try {
+            const fields = Object.keys(data).filter(k => k !== 'id' && k !== 'user_id');
+            if (fields.length === 0) return false;
+
+            const setClause = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');
+            const values = fields.map(f => (data as any)[f]);
+
+            await query(`UPDATE user_profiles SET ${setClause} WHERE user_id = $1`, [userId, ...values]);
+            return true;
+        } catch (error) {
+            console.error('Error updating profile:', error);
+            throw error;
+        }
+    }
+
+    // Atualizar metas (tabela user_goals)
+    async updateGoals(userId: string, data: Partial<UserGoals>): Promise<boolean> {
+        try {
+            const fields = Object.keys(data).filter(k => k !== 'id' && k !== 'user_id');
+            if (fields.length === 0) return false;
+
+            const setClause = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');
+            const values = fields.map(f => (data as any)[f]);
+
+            await query(`UPDATE user_goals SET ${setClause} WHERE user_id = $1`, [userId, ...values]);
+            return true;
+        } catch (error) {
+            console.error('Error updating goals:', error);
+            throw error;
+        }
+    }
+
     // Calcular metas baseadas no perfil
     private calculateGoals(profile: OnboardingData): Omit<UserGoals, 'id' | 'user_id'> {
         const weeklyGoal = profile.weekly_hours;

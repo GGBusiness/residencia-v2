@@ -58,3 +58,30 @@ export async function getUserGoalsAction(userId: string) {
         return { success: false, error: 'Failed' };
     }
 }
+
+export async function updateUserDataAction(userId: string, data: { name?: string }) {
+    try {
+        await userService.updateUser(userId, data);
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: 'Failed' };
+    }
+}
+
+export async function updateProfileSettingsAction(userId: string, data: any) {
+    try {
+        await userService.updateProfile(userId, data);
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: 'Failed' };
+    }
+}
+
+export async function updateUserGoalsAction(userId: string, data: any) {
+    try {
+        await userService.updateGoals(userId, data);
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: 'Failed' };
+    }
+}
