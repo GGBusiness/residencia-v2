@@ -107,21 +107,30 @@ export async function getAvailableFilters() {
         const areaSet = new Set([...qAreas.map(r => r.area), ...dAreas.map(r => r.area)]);
         let areas = Array.from(areaSet).filter(a => a !== 'Geral' && a !== 'Todas as áreas').sort();
 
-        // Institutions Fallback
+        // Institutions Fallback - LISTA COMPLETA
         let institutions = instRows.map(r => r.institution);
-        if (institutions.length === 0) {
-            institutions = ['ENARE', 'USP', 'UNICAMP', 'SUS-SP', 'SMS-SP', 'UFRJ', 'Outros'];
-        }
+        const defaultInstitutions = [
+            'ENARE', 'USP', 'USP-RP', 'UNICAMP', 'SUS-SP', 'SCMSA',
+            'AMRIGS', 'PSU-MG', 'UFRJ', 'UERJ', 'UNIFESP', 'IAMSPE'
+        ];
+        // Combine DB results with defaults, remove duplicates
+        institutions = Array.from(new Set([...institutions, ...defaultInstitutions])).sort();
 
         // Years Fallback
         let years = yearRows.map(r => r.year);
-        if (years.length === 0) {
-            years = [2026, 2025, 2024, 2023, 2022, 2021, 2020];
-        }
+        const defaultYears = [2026, 2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018];
+        years = Array.from(new Set([...years, ...defaultYears])).sort((a, b) => b - a);
 
         // Areas Fallback
+        const defaultAreas = [
+            'Cirurgia Geral', 'Clínica Médica', 'Ginecologia e Obstetrícia',
+            'Pediatria', 'Medicina Preventiva', 'Medicina de Família e Comunidade'
+        ];
         if (areas.length === 0) {
-            areas = ['Cirurgia', 'Clínica Médica', 'GO', 'Pediatria', 'Medicina Preventiva'];
+            areas = defaultAreas;
+        } else {
+            // Ensure defaults are present
+            areas = Array.from(new Set([...areas, ...defaultAreas])).sort();
         }
 
         return {
@@ -133,9 +142,9 @@ export async function getAvailableFilters() {
         console.error('Error fetching available filters:', error);
         // Emergency Fallback
         return {
-            institutions: ['ENARE', 'USP', 'UNICAMP', 'SUS-SP', 'Outros'],
-            years: [2026, 2025, 2024, 2023, 2022],
-            areas: ['Cirurgia', 'Clínica Médica', 'GO', 'Pediatria', 'Medicina Preventiva']
+            institutions: ['ENARE', 'USP', 'USP-RP', 'UNICAMP', 'SUS-SP', 'PSU-MG', 'UFRJ', 'UNIFESP'],
+            years: [2026, 2025, 2024, 2023, 2022, 2021, 2020],
+            areas: ['Cirurgia Geral', 'Clínica Médica', 'Ginecologia e Obstetrícia', 'Pediatria', 'Medicina Preventiva']
         };
     }
 }

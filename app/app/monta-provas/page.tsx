@@ -37,10 +37,18 @@ export default function MontaProvasPage() {
     const [step, setStep] = useState<Step>('welcome');
     const [loadingFilters, setLoadingFilters] = useState(true);
 
-    // Dynamic Filters State
-    const [availablePrograms, setAvailablePrograms] = useState<string[]>([]);
-    const [availableYears, setAvailableYears] = useState<number[]>([]);
-    const [availableAreas, setAvailableAreas] = useState<string[]>([]);
+    // Dynamic Filters State (Initialized with safe defaults)
+    const [availablePrograms, setAvailablePrograms] = useState<string[]>([
+        'ENARE', 'USP', 'USP-RP', 'UNICAMP', 'SUS-SP', 'SCMSA',
+        'AMRIGS', 'PSU-MG', 'UFRJ', 'UERJ', 'UNIFESP', 'IAMSPE'
+    ]);
+    const [availableYears, setAvailableYears] = useState<number[]>([
+        2026, 2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018
+    ]);
+    const [availableAreas, setAvailableAreas] = useState<string[]>([
+        'Cirurgia Geral', 'Clínica Médica', 'Ginecologia e Obstetrícia',
+        'Pediatria', 'Medicina Preventiva', 'Medicina de Família e Comunidade'
+    ]);
 
     // Default config optimized for "High Yield"
     const [config, setConfig] = useState({
