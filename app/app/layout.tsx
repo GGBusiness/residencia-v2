@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, Sparkles, Calendar, Target, History, Repeat } from 'lucide-react';
+import { Home, Sparkles, Calendar, Target, History, Repeat, Database } from 'lucide-react';
 import { ChatWidget } from '@/components/ai/ChatWidget';
 
 export default function AppRootLayout({
@@ -16,6 +16,7 @@ export default function AppRootLayout({
         { id: 'inicio', label: 'Início', icon: Home, path: '/app' },
         { id: 'revisoes', label: 'Revisões', icon: Repeat, path: '/app/revisoes' },
         { id: 'monta-provas', label: 'Monta Provas', icon: Sparkles, path: '/app/monta-provas' },
+        { id: 'knowledge-hub', label: 'Dr. IA Hub', icon: Database, path: '/app/knowledge-hub' },
         { id: 'planner', label: 'Planner', icon: Calendar, path: '/app/planner' },
         { id: 'metas', label: 'Metas', icon: Target, path: '/app/metas' },
         { id: 'historico', label: 'Histórico', icon: History, path: '/app/historico' },
