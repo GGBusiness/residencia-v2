@@ -1,4 +1,5 @@
 'use client';
+// Build: 2026-02-10T21:16:00
 
 import { useState, useEffect } from 'react';
 import { Sparkles, Send, ChevronRight, Zap, Target, Brain } from 'lucide-react';

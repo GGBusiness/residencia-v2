@@ -97,13 +97,22 @@ export const dataService = {
             const { rows: institutions } = await query('SELECT DISTINCT institution FROM documents WHERE institution IS NOT NULL ORDER BY institution');
             const { rows: years } = await query('SELECT DISTINCT year FROM documents WHERE year IS NOT NULL ORDER BY year DESC');
 
-            // Areas should come from questions to be most accurate for "Monta Provas"
-            const { rows: areas } = await query('SELECT DISTINCT area FROM questions WHERE area IS NOT NULL ORDER BY area');
+            // Areas from both tables to be safe
+            const { rows: qAreas } = await query('SELECT DISTINCT area FROM questions WHERE area IS NOT NULL');
+            const { rows: dAreas } = await query('SELECT DISTINCT area FROM documents WHERE area IS NOT NULL');
+
+            const areaSet = new Set([...qAreas.map(r => r.area), ...dAreas.map(r => r.area)]);
+            let areas = Array.from(areaSet).filter(a => a !== 'Geral' && a !== 'Todas as áreas').sort();
+
+            // Fallback to standard if still empty
+            if (areas.length === 0) {
+                areas = ['Cirurgia', 'Clínica Médica', 'GO', 'Pediatria', 'Medicina Preventiva'];
+            }
 
             return {
                 institutions: institutions.map(r => r.institution),
                 years: years.map(r => r.year),
-                areas: areas.map(r => r.area)
+                areas: areas
             };
         } catch (error) {
             console.error('Error fetching available filters:', error);
