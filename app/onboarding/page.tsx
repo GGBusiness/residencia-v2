@@ -7,7 +7,7 @@ import { Card, CardBody } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { type OnboardingData } from '@/lib/user-service';
 import { completeOnboardingAction } from '@/app/actions/user-actions';
-import { ArrowRight, ArrowLeft, CheckCircle2, Sparkles } from 'lucide-react';
+import { ArrowRight, ArrowLeft, CheckCircle2, Sparkles, Clock } from 'lucide-react';
 
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7;
@@ -86,6 +86,15 @@ export default function OnboardingPage() {
         };
         checkAuth();
     }, [router]);
+
+    // Derived state for granular time input
+    const [dailyHours, setDailyHours] = useState(4);
+    const [studyDays, setStudyDays] = useState(5);
+
+    // Sync granular inputs to formData.weekly_hours
+    useEffect(() => {
+        setFormData(prev => ({ ...prev, weekly_hours: dailyHours * studyDays }));
+    }, [dailyHours, studyDays]);
 
     const handleNext = () => {
         if (currentStep < 7) {
@@ -333,24 +342,52 @@ export default function OnboardingPage() {
                                     </div>
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Horas disponíveis por semana: <strong>{formData.weekly_hours}h</strong>
-                                    </label>
-                                    <input
-                                        type="range"
-                                        min="5"
-                                        max="50"
-                                        step="5"
-                                        value={formData.weekly_hours}
-                                        onChange={(e) => setFormData({ ...formData, weekly_hours: parseInt(e.target.value) })}
-                                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
-                                    />
-                                    <div className="flex justify-between text-xs text-gray-500 mt-1">
-                                        <span>5h</span>
-                                        <span>25h</span>
-                                        <span>50h</span>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Horas por dia: <strong>{dailyHours}h</strong>
+                                        </label>
+                                        <input
+                                            type="range"
+                                            min="1"
+                                            max="12"
+                                            step="1"
+                                            value={dailyHours}
+                                            onChange={(e) => setDailyHours(parseInt(e.target.value))}
+                                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
+                                        />
+                                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                            <span>1h</span>
+                                            <span>12h</span>
+                                        </div>
                                     </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Dias por semana: <strong>{studyDays} dias</strong>
+                                        </label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {[1, 2, 3, 4, 5, 6, 7].map((d) => (
+                                                <button
+                                                    key={d}
+                                                    onClick={() => setStudyDays(d)}
+                                                    className={`w-10 h-10 rounded-full font-bold transition-all ${studyDays === d
+                                                        ? 'bg-primary-600 text-white shadow-md transform scale-105'
+                                                        : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-primary-300'
+                                                        }`}
+                                                >
+                                                    {d}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-primary-50 p-4 rounded-xl border border-primary-100 flex items-center justify-center gap-3">
+                                    <Clock className="w-5 h-5 text-primary-600" />
+                                    <p className="text-primary-800 font-medium">
+                                        Total: <strong>{formData.weekly_hours} horas</strong> semanais de foco! 🚀
+                                    </p>
                                 </div>
                             </div>
                         )}
