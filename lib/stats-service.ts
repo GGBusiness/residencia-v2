@@ -69,6 +69,24 @@ export async function getUserStats(userId: string): Promise<UserStats> {
 
         const averagePercentage = totalQuestions > 0 ? (totalCorrect / totalQuestions) * 100 : 0;
 
+        // Calcular Forças e Fraquezas
+        const areasArray = Object.entries(statsByArea).map(([area, data]) => ({
+            area,
+            score: Math.round(data.percentage)
+        }));
+
+        // Melhores 3 (> 70%)
+        const strengths = areasArray
+            .filter(a => a.score >= 70)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 3);
+
+        // Piores 3 (< 60%)
+        const weaknesses = areasArray
+            .filter(a => a.score < 60)
+            .sort((a, b) => a.score - b.score)
+            .slice(0, 3);
+
         return {
             totalAttempts: attempts.length,
             totalQuestions,
@@ -76,6 +94,8 @@ export async function getUserStats(userId: string): Promise<UserStats> {
             averagePercentage,
             statsByArea,
             statsByDifficulty,
+            strengths,
+            weaknesses
         };
 
     } catch (error) {
@@ -92,6 +112,8 @@ function emptyStats(): UserStats {
         averagePercentage: 0,
         statsByArea: {},
         statsByDifficulty: {},
+        strengths: [],
+        weaknesses: []
     };
 }
 

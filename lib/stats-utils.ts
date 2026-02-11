@@ -15,6 +15,8 @@ export interface UserStats {
     averagePercentage: number;
     statsByArea: Record<string, { correct: number; total: number; percentage: number }>;
     statsByDifficulty: Record<string, { correct: number; total: number; percentage: number }>;
+    strengths: { area: string; score: number }[];
+    weaknesses: { area: string; score: number }[];
 }
 
 // Calcular projeção (Helper puro, sem banco)
