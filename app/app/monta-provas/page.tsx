@@ -21,9 +21,14 @@ const OBJETIVOS = [
 // Fallback initial state if fetch fails
 const INITIAL_AREAS = [
     { id: 'todas', label: 'Todas as áreas', icon: '🌐' },
+    { id: 'Cirurgia', label: 'Cirurgia', icon: '🔪' },
+    { id: 'Clínica Médica', label: 'Clínica Médica', icon: '🏥' },
+    { id: 'Obstetrícia e Ginecologia', label: 'GO', icon: '🤰' },
+    { id: 'Pediatria', label: 'Pediatria', icon: '👶' },
+    { id: 'Medicina Preventiva', label: 'Preventiva', icon: '🛡️' },
 ];
 
-const QUESTOES_OPTIONS = [50, 100, 200];
+const QUESTOES_OPTIONS = [15, 30, 60, 90, 120];
 
 export default function MontaProvasPage() {
     const router = useRouter();
@@ -40,7 +45,7 @@ export default function MontaProvasPage() {
     const [config, setConfig] = useState({
         objetivo: '',
         area: '',
-        questoes: 100, // Default to high count
+        questoes: 30, // Default to a reasonable count
         anos: [] as number[],
         programs: [] as string[],
         subareas: [] as string[],
@@ -254,36 +259,52 @@ export default function MontaProvasPage() {
 
                 {/* Choice Cards */}
                 {step === 'welcome' && (
-                    <div className="space-y-4">
-                        <Card className="border-2 border-indigo-500 shadow-xl transform transition-transform hover:scale-[1.02] cursor-pointer" onClick={handleSmartExam}>
-                            <CardBody className="p-6 relative overflow-hidden">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <Card
+                            className="border-2 border-indigo-500 shadow-xl transform transition-transform hover:scale-[1.02] cursor-pointer h-full"
+                            onClick={handleSmartExam}
+                        >
+                            <CardBody className="p-6 relative overflow-hidden flex flex-col h-full">
                                 <div className="absolute top-0 right-0 p-2 opacity-10">
-                                    <Sparkles className="w-32 h-32" />
+                                    <Sparkles className="w-16 h-16" />
                                 </div>
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold">
+                                <div className="flex flex-col gap-4 h-full">
+                                    <div className="w-12 h-12 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold shrink-0">
                                         IA
                                     </div>
                                     <div className="flex-1">
-                                        <h3 className="text-xl font-bold text-gray-900">Montar Prova Inteligente</h3>
-                                        <p className="text-indigo-700 font-medium">Recomendado • Foco em Alto Rendimento</p>
-                                        <p className="text-sm text-gray-500 mt-1">Configura simulado com 100 questões das principais residências (ENARE, USP...).</p>
+                                        <h3 className="text-xl font-bold text-gray-900 leading-tight">PROVA INTELIGENTE (IA)</h3>
+                                        <p className="text-indigo-700 font-medium text-sm mt-1">Foco em Alto Rendimento</p>
+                                        <p className="text-xs text-gray-500 mt-2">O Agente escolhe as melhores questões para o seu nível atual.</p>
                                     </div>
-                                    <ChevronRight className="w-6 h-6 text-indigo-400" />
+                                    <div className="flex items-center text-indigo-600 font-bold text-sm mt-auto">
+                                        COMEÇAR AGORA <ChevronRight className="w-4 h-4 ml-1" />
+                                    </div>
                                 </div>
                             </CardBody>
                         </Card>
 
-                        <div className="relative flex items-center py-2">
-                            <div className="flex-grow border-t border-gray-300"></div>
-                            <span className="flex-shrink-0 mx-4 text-gray-400 text-sm">ou monte manualmente</span>
-                            <div className="flex-grow border-t border-gray-300"></div>
-                        </div>
-
-                        <Card className="border border-gray-200 hover:border-gray-400 cursor-pointer" onClick={() => handleChoice('Montagem Manual', null)}>
-                            <CardBody className="p-4 flex items-center justify-between">
-                                <span className="font-medium text-gray-700">Configuração Manual Passo-a-Passo</span>
-                                <ChevronRight className="w-5 h-5 text-gray-400" />
+                        <Card
+                            className="border-2 border-gray-200 hover:border-indigo-400 shadow-lg transform transition-transform hover:scale-[1.02] cursor-pointer h-full"
+                            onClick={() => handleChoice('MONTE SUA PROVA', null)}
+                        >
+                            <CardBody className="p-6 relative overflow-hidden flex flex-col h-full">
+                                <div className="absolute top-0 right-0 p-2 opacity-10">
+                                    <Target className="w-16 h-16" />
+                                </div>
+                                <div className="flex flex-col gap-4 h-full">
+                                    <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-bold shrink-0">
+                                        🛠️
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="text-xl font-bold text-gray-900 leading-tight">MONTE SUA PROVA</h3>
+                                        <p className="text-gray-600 font-medium text-sm mt-1">100% Personalizável</p>
+                                        <p className="text-xs text-gray-500 mt-2">Escolha temas, instituições, anos e dificuldade manualmente.</p>
+                                    </div>
+                                    <div className="flex items-center text-gray-600 font-bold text-sm mt-auto">
+                                        CONFIGURAR <ChevronRight className="w-4 h-4 ml-1" />
+                                    </div>
+                                </div>
                             </CardBody>
                         </Card>
                     </div>
@@ -304,16 +325,22 @@ export default function MontaProvasPage() {
 
                 {step === 'area' && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <Card key="todas" hover onClick={() => handleChoice('Todas as áreas', 'todas')} className="cursor-pointer">
-                            <CardBody className="p-4">
-                                <div className="text-2xl mb-2">🌐</div>
-                                <p className="font-medium text-gray-900">Todas as áreas</p>
+                        <Card key="todas" hover onClick={() => handleChoice('Todas as áreas', 'todas')} className="cursor-pointer bg-indigo-50 border-indigo-100">
+                            <CardBody className="p-4 flex items-center gap-3">
+                                <div className="text-2xl">🌐</div>
+                                <p className="font-bold text-indigo-900 text-lg">Todas as áreas</p>
                             </CardBody>
                         </Card>
                         {availableAreas.map((area) => (
                             <Card key={area} hover onClick={() => handleChoice(area, area)} className="cursor-pointer">
-                                <CardBody className="p-4">
-                                    <div className="text-2xl mb-2">🩺</div>
+                                <CardBody className="p-4 flex items-center gap-3">
+                                    <div className="text-2xl">
+                                        {area.includes('Cirurgia') ? '🔪' :
+                                            area.includes('Clinica') || area.includes('Clínica') ? '🏥' :
+                                                area.includes('Pediatria') ? '👶' :
+                                                    area.includes('Preventiva') ? '🛡️' :
+                                                        area.includes('Obstet') || area.includes('GO') ? '🤰' : '🩺'}
+                                    </div>
                                     <p className="font-medium text-gray-900">{area}</p>
                                 </CardBody>
                             </Card>
@@ -340,12 +367,12 @@ export default function MontaProvasPage() {
                 )}
 
                 {step === 'questions' && (
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
                         {QUESTOES_OPTIONS.map((num) => (
                             <Card key={num} hover onClick={() => handleChoice(`${num} questões`, num)} className="cursor-pointer">
                                 <CardBody className="p-4 text-center">
-                                    <p className="text-3xl font-bold text-indigo-600">{num}</p>
-                                    <p className="text-xs text-gray-600 mt-1">questões</p>
+                                    <p className="text-2xl font-bold text-indigo-600">{num}</p>
+                                    <p className="text-[10px] text-gray-600 mt-1 uppercase tracking-wider">questões</p>
                                 </CardBody>
                             </Card>
                         ))}
@@ -355,21 +382,24 @@ export default function MontaProvasPage() {
                 {step === 'years' && (
                     <Card>
                         <CardBody className="p-6 space-y-3">
-                            {/* Option to Select All */}
                             <button
                                 onClick={() => handleChoice('Todos os Anos', 'all')}
-                                className="w-full p-4 text-left border rounded-lg hover:bg-indigo-50 hover:border-indigo-300 mb-2"
+                                className="w-full p-4 text-left border-2 border-indigo-100 rounded-xl hover:bg-indigo-50 hover:border-indigo-300 mb-2 transition-colors"
                             >
-                                <p className="font-bold">Todos os Anos Disponíveis</p>
-                                <p className="text-sm text-gray-500">{availableYears.length > 0 ? `${Math.min(...availableYears)} - ${Math.max(...availableYears)}` : 'Carregando...'}</p>
+                                <p className="font-bold text-gray-900">Todos os Anos Disponíveis</p>
+                                <p className="text-sm text-gray-500">
+                                    {availableYears.length > 0
+                                        ? `${Math.min(...availableYears)} - ${Math.max(...availableYears)}`
+                                        : 'Carregando...'}
+                                </p>
                             </button>
 
-                            <div className="grid grid-cols-3 gap-2">
-                                {availableYears.slice(0, 9).map((year) => (
+                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                {availableYears.map((year) => (
                                     <button
                                         key={year}
                                         onClick={() => handleChoice(year.toString(), [year])}
-                                        className="p-3 border rounded-lg hover:bg-indigo-50 text-center font-medium"
+                                        className="p-3 border rounded-xl hover:bg-indigo-50 hover:border-indigo-300 text-center font-medium transition-colors"
                                     >
                                         {year}
                                     </button>

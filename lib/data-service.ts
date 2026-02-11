@@ -92,12 +92,13 @@ export const dataService = {
      * Obtém filtros disponíveis baseados nos dados reais do banco
      */
     async getAvailableFilters() {
-        noStore(); // Desabilita cache estático do Next.js
+        noStore();
         try {
-            // Aggregate queries
             const { rows: institutions } = await query('SELECT DISTINCT institution FROM documents WHERE institution IS NOT NULL ORDER BY institution');
             const { rows: years } = await query('SELECT DISTINCT year FROM documents WHERE year IS NOT NULL ORDER BY year DESC');
-            const { rows: areas } = await query('SELECT DISTINCT area FROM documents WHERE area IS NOT NULL ORDER BY area');
+
+            // Areas should come from questions to be most accurate for "Monta Provas"
+            const { rows: areas } = await query('SELECT DISTINCT area FROM questions WHERE area IS NOT NULL ORDER BY area');
 
             return {
                 institutions: institutions.map(r => r.institution),
