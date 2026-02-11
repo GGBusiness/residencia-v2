@@ -77,22 +77,20 @@ export default function MontaProvasPage() {
             try {
                 const filters = await getAvailableFilters();
                 if (filters) {
-                    // Filter backend institutions to only show user-approved ones
-                    const filteredInstitutions = filters.institutions.filter(inst =>
-                        ALLOWED_PROGRAMS.includes(inst)
-                    );
-                    setAvailablePrograms(filteredInstitutions.length > 0 ? filteredInstitutions : ALLOWED_PROGRAMS);
+                    // Strict User Preference: Always show allowed list, regardless of DB state
+                    setAvailablePrograms(ALLOWED_PROGRAMS);
+                    setAvailableYears(ALLOWED_YEARS);
 
-                    // Filter backend years to only show user-approved ones (2020-2026)
-                    const filteredYears = filters.years.filter(year =>
-                        ALLOWED_YEARS.includes(year)
-                    );
-                    setAvailableYears(filteredYears.length > 0 ? filteredYears : ALLOWED_YEARS);
-
-                    setAvailableAreas(filters.areas);
+                    // Areas can still be dynamic from DB
+                    if (filters.areas && filters.areas.length > 0) {
+                        setAvailableAreas(filters.areas);
+                    }
                 }
             } catch (error) {
                 console.error('Failed to load filters', error);
+                // Fallback
+                setAvailablePrograms(ALLOWED_PROGRAMS);
+                setAvailableYears(ALLOWED_YEARS);
             } finally {
                 setLoadingFilters(false);
             }
