@@ -24,6 +24,8 @@ interface StudyEvent {
     completed: boolean;
 }
 
+import { ConfirmationModal } from '@/components/ui/Modal';
+
 export default function PlannerPage() {
     const router = useRouter();
     const { firstName, user } = useUser();
@@ -34,25 +36,71 @@ export default function PlannerPage() {
     const [viewMode, setViewMode] = useState<'month' | 'week'>('week');
     const [generating, setGenerating] = useState(false);
 
-    const handleGenerateSchedule = async () => {
-        if (!user?.id) return;
-        if (!confirm('Isso criará um cronograma automático para o próximo mês baseado no seu perfil. Continuar?')) return;
+    // Modal State
+    const [modalConfig, setModalConfig] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        type: 'confirm' | 'alert';
+        onConfirm?: () => void;
+        variant?: 'primary' | 'danger';
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        type: 'alert'
+    });
 
-        setGenerating(true);
-        try {
-            const result = await generateScheduleAction(user.id);
-            if (result.success) {
-                alert(`🎉 Cronograma criado com sucesso! ${result.count} sessões agendadas.`);
-                await loadEvents();
-            } else {
-                alert('Erro ao gerar cronograma. Tente novamente.');
+    const closeModal = () => setModalConfig(prev => ({ ...prev, isOpen: false }));
+
+    const showConfirm = (title: string, message: string, onConfirm: () => void, variant: 'primary' | 'danger' = 'primary') => {
+        setModalConfig({
+            isOpen: true,
+            title,
+            message,
+            type: 'confirm',
+            onConfirm: async () => {
+                await onConfirm();
+                closeModal();
+            },
+            variant
+        });
+    };
+
+    const showAlert = (title: string, message: string) => {
+        setModalConfig({
+            isOpen: true,
+            title,
+            message,
+            type: 'alert',
+            onConfirm: closeModal
+        });
+    };
+
+    const handleGenerateSchedule = () => {
+        if (!user?.id) return;
+
+        showConfirm(
+            'Gerar Cronograma IA',
+            'Isso criará um cronograma automático para o próximo mês baseado no seu perfil. Continuar?',
+            async () => {
+                setGenerating(true);
+                try {
+                    const result = await generateScheduleAction(user.id);
+                    if (result.success) {
+                        await loadEvents();
+                        showAlert('Sucesso!', `🎉 Cronograma criado com sucesso! ${result.count} sessões agendadas.`);
+                    } else {
+                        showAlert('Erro', 'Erro ao gerar cronograma. Tente novamente.');
+                    }
+                } catch (error) {
+                    console.error(error);
+                    showAlert('Erro', 'Erro inesperado ao gerar cronograma.');
+                } finally {
+                    setGenerating(false);
+                }
             }
-        } catch (error) {
-            console.error(error);
-            alert('Erro inesperado.');
-        } finally {
-            setGenerating(false);
-        }
+        );
     };
 
     const [formData, setFormData] = useState({
@@ -111,6 +159,7 @@ export default function PlannerPage() {
             });
         } catch (error) {
             console.error('Error creating event:', error);
+            showAlert('Erro', 'Erro ao criar sessão.');
         }
     };
 
@@ -128,20 +177,26 @@ export default function PlannerPage() {
         }
     };
 
-    const deleteEvent = async (eventId: string) => {
-        if (!confirm('Deseja remover esta sessão?')) return;
+    const deleteEvent = (eventId: string) => {
+        showConfirm(
+            'Remover Sessão',
+            'Deseja realmente remover esta sessão de estudo?',
+            async () => {
+                try {
+                    const { error } = await supabase
+                        .from('study_events')
+                        .delete()
+                        .eq('id', eventId);
 
-        try {
-            const { error } = await supabase
-                .from('study_events')
-                .delete()
-                .eq('id', eventId);
-
-            if (error) throw error;
-            await loadEvents();
-        } catch (error) {
-            console.error('Error deleting event:', error);
-        }
+                    if (error) throw error;
+                    await loadEvents();
+                } catch (error) {
+                    console.error('Error deleting event:', error);
+                    showAlert('Erro', 'Erro ao remover sessão.');
+                }
+            },
+            'danger'
+        );
     };
 
     const getWeekEvents = () => {
@@ -476,6 +531,17 @@ export default function PlannerPage() {
                     </CardBody>
                 </Card>
             </div>
+
+            <ConfirmationModal
+                isOpen={modalConfig.isOpen}
+                onClose={closeModal}
+                onConfirm={modalConfig.onConfirm}
+                title={modalConfig.title}
+                message={modalConfig.message}
+                showCancel={modalConfig.type === 'confirm'}
+                confirmText={modalConfig.type === 'alert' ? 'OK' : 'Confirmar'}
+                variant={modalConfig.variant}
+            />
         </div>
     );
 }
