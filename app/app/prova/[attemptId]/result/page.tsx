@@ -15,7 +15,7 @@ import {
 import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { dataService, type Attempt, type AttemptAnswer } from '@/lib/data-service';
+import { getAttempt, getAttemptAnswers, type Attempt, type AttemptAnswer } from '@/lib/data-service';
 import Link from 'next/link';
 
 // Mock questions
@@ -50,10 +50,10 @@ export default function ResultPage() {
 
     const loadResult = async () => {
         try {
-            const attemptData = await dataService.getAttempt(attemptId);
+            const attemptData = await getAttempt(attemptId);
             setAttempt(attemptData);
 
-            const answersData = await dataService.getAttemptAnswers(attemptId);
+            const answersData = await getAttemptAnswers(attemptId);
             const answersMap: Record<number, AttemptAnswer> = {};
             answersData.forEach((ans) => {
                 answersMap[ans.question_index] = ans;
@@ -171,8 +171,8 @@ export default function ResultPage() {
                     <button
                         onClick={() => setFilter('all')}
                         className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${filter === 'all'
-                                ? 'bg-primary-600 text-white'
-                                : 'bg-white text-gray-700 hover:bg-gray-50'
+                            ? 'bg-primary-600 text-white'
+                            : 'bg-white text-gray-700 hover:bg-gray-50'
                             }`}
                     >
                         Todas ({stats.total})
@@ -180,8 +180,8 @@ export default function ResultPage() {
                     <button
                         onClick={() => setFilter('correct')}
                         className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${filter === 'correct'
-                                ? 'bg-success-600 text-white'
-                                : 'bg-white text-gray-700 hover:bg-gray-50'
+                            ? 'bg-success-600 text-white'
+                            : 'bg-white text-gray-700 hover:bg-gray-50'
                             }`}
                     >
                         Certas ({stats.correct})
@@ -189,8 +189,8 @@ export default function ResultPage() {
                     <button
                         onClick={() => setFilter('incorrect')}
                         className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${filter === 'incorrect'
-                                ? 'bg-error-600 text-white'
-                                : 'bg-white text-gray-700 hover:bg-gray-50'
+                            ? 'bg-error-600 text-white'
+                            : 'bg-white text-gray-700 hover:bg-gray-50'
                             }`}
                     >
                         Erradas ({stats.incorrect})
@@ -198,8 +198,8 @@ export default function ResultPage() {
                     <button
                         onClick={() => setFilter('unanswered')}
                         className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${filter === 'unanswered'
-                                ? 'bg-gray-600 text-white'
-                                : 'bg-white text-gray-700 hover:bg-gray-50'
+                            ? 'bg-gray-600 text-white'
+                            : 'bg-white text-gray-700 hover:bg-gray-50'
                             }`}
                     >
                         Não respondidas ({stats.unanswered})
@@ -288,10 +288,10 @@ export default function ResultPage() {
                                                         <div
                                                             key={key}
                                                             className={`p-3 rounded-lg border-2 ${isCorrectAnswer
-                                                                    ? 'border-success-500 bg-success-50'
-                                                                    : isUserAnswer
-                                                                        ? 'border-error-500 bg-error-50'
-                                                                        : 'border-gray-200'
+                                                                ? 'border-success-500 bg-success-50'
+                                                                : isUserAnswer
+                                                                    ? 'border-error-500 bg-error-50'
+                                                                    : 'border-gray-200'
                                                                 }`}
                                                         >
                                                             <div className="flex items-start gap-2">

@@ -86,254 +86,288 @@ export interface Question {
     topic: string | null;
 }
 
+
 // Data Access Layer (DigitalOcean Version)
-export const dataService = {
-    /**
-     * Obtém filtros disponíveis baseados nos dados reais do banco
-     */
-    async getAvailableFilters() {
-        noStore();
-        try {
-            const { rows: institutions } = await query('SELECT DISTINCT institution FROM documents WHERE institution IS NOT NULL ORDER BY institution');
-            const { rows: years } = await query('SELECT DISTINCT year FROM documents WHERE year IS NOT NULL ORDER BY year DESC');
 
-            // Areas from both tables to be safe
-            const { rows: qAreas } = await query('SELECT DISTINCT area FROM questions WHERE area IS NOT NULL');
-            const { rows: dAreas } = await query('SELECT DISTINCT area FROM documents WHERE area IS NOT NULL');
+/**
+ * Obtém filtros disponíveis baseados nos dados reais do banco com fallbacks seguros
+ */
+export async function getAvailableFilters() {
+    noStore();
+    try {
+        const { rows: instRows } = await query('SELECT DISTINCT institution FROM documents WHERE institution IS NOT NULL ORDER BY institution');
+        const { rows: yearRows } = await query('SELECT DISTINCT year FROM documents WHERE year IS NOT NULL ORDER BY year DESC');
 
-            const areaSet = new Set([...qAreas.map(r => r.area), ...dAreas.map(r => r.area)]);
-            let areas = Array.from(areaSet).filter(a => a !== 'Geral' && a !== 'Todas as áreas').sort();
+        // Areas from both tables to be safe
+        const { rows: qAreas } = await query('SELECT DISTINCT area FROM questions WHERE area IS NOT NULL');
+        const { rows: dAreas } = await query('SELECT DISTINCT area FROM documents WHERE area IS NOT NULL');
 
-            // Fallback to standard if still empty
-            if (areas.length === 0) {
-                areas = ['Cirurgia', 'Clínica Médica', 'GO', 'Pediatria', 'Medicina Preventiva'];
-            }
+        const areaSet = new Set([...qAreas.map(r => r.area), ...dAreas.map(r => r.area)]);
+        let areas = Array.from(areaSet).filter(a => a !== 'Geral' && a !== 'Todas as áreas').sort();
 
-            return {
-                institutions: institutions.map(r => r.institution),
-                years: years.map(r => r.year),
-                areas: areas
-            };
-        } catch (error) {
-            console.error('Error fetching available filters:', error);
-            return null;
+        // Institutions Fallback
+        let institutions = instRows.map(r => r.institution);
+        if (institutions.length === 0) {
+            institutions = ['ENARE', 'USP', 'UNICAMP', 'SUS-SP', 'SMS-SP', 'UFRJ', 'Outros'];
         }
-    },
 
-    // Documents
-    async searchDocuments(filters: DocumentFilters = {}) {
-        noStore();
-        const {
-            query: textQuery,
-            types,
+        // Years Fallback
+        let years = yearRows.map(r => r.year);
+        if (years.length === 0) {
+            years = [2026, 2025, 2024, 2023, 2022, 2021, 2020];
+        }
+
+        // Areas Fallback
+        if (areas.length === 0) {
+            areas = ['Cirurgia', 'Clínica Médica', 'GO', 'Pediatria', 'Medicina Preventiva'];
+        }
+
+        return {
+            institutions,
             years,
-            program,
-            area,
-            tags,
-            hasAnswerKey,
-            sort = 'year_desc',
-            page = 1,
-            limit = 20,
-        } = filters;
-
-        let sql = 'SELECT * FROM documents WHERE 1=1';
-        const params: any[] = [];
-        let pIndex = 1;
-
-        if (textQuery) {
-            sql += ` AND title ILIKE $${pIndex}`;
-            params.push(`%${textQuery}%`);
-            pIndex++;
-        }
-
-        if (types && types.length > 0) {
-            sql += ` AND type = ANY($${pIndex}::text[])`;
-            params.push(types);
-            pIndex++;
-        }
-
-        if (years && years.length > 0) {
-            sql += ` AND year = ANY($${pIndex}::int[])`;
-            params.push(years);
-            pIndex++;
-        }
-
-        if (program) {
-            sql += ` AND (program ILIKE $${pIndex} OR institution ILIKE $${pIndex})`;
-            params.push(`%${program}%`);
-            pIndex++;
-        }
-
-        if (area) {
-            sql += ` AND area = $${pIndex}`;
-            params.push(area);
-            pIndex++;
-        }
-
-        if (hasAnswerKey !== undefined) {
-            sql += ` AND has_answer_key = $${pIndex}`;
-            params.push(hasAnswerKey);
-            pIndex++;
-        }
-
-        // Count total before pagination
-        const countSql = `SELECT COUNT(*) as total FROM (${sql}) as sub`;
-        const { rows: countRows } = await query(countSql, params);
-        const count = parseInt(countRows[0].total);
-
-        // Sorting
-        const [sortField, sortDirection] = sort.split('_');
-        const dir = sortDirection === 'asc' ? 'ASC' : 'DESC';
-        if (sortField === 'year') {
-            sql += ` ORDER BY year ${dir} NULLS LAST`;
-        } else {
-            sql += ` ORDER BY title ${dir}`;
-        }
-
-        // Pagination
-        const offset = (page - 1) * limit;
-        sql += ` LIMIT $${pIndex} OFFSET $${pIndex + 1}`;
-        params.push(limit, offset);
-
-        const { rows } = await query(sql, params);
-
-        return {
-            data: rows.map((doc) => ({
-                ...doc,
-                tags: normalizeArray(doc.tags),
-            })) as Document[],
-            count: count,
-            page,
-            totalPages: Math.ceil(count / limit),
+            areas
         };
-    },
-
-    async getDocument(docId: string) {
-        noStore();
-        const { rows } = await query('SELECT * FROM documents WHERE id = $1', [docId]);
-        const data = rows[0];
-
-        if (!data) throw new Error('Document not found');
-
+    } catch (error) {
+        console.error('Error fetching available filters:', error);
+        // Emergency Fallback
         return {
-            ...data,
-            tags: normalizeArray(data.tags),
-        } as Document;
-    },
+            institutions: ['ENARE', 'USP', 'UNICAMP', 'SUS-SP', 'Outros'],
+            years: [2026, 2025, 2024, 2023, 2022],
+            areas: ['Cirurgia', 'Clínica Médica', 'GO', 'Pediatria', 'Medicina Preventiva']
+        };
+    }
+}
 
-    // Attempts
-    async createAttempt(config: AttemptConfig, userId: string) {
-        // Obter user real
-        // Nota: para endpoints seguros, deveríamos validar a sessão aqui também,
-        // mas assumimos que o chamador (Page/Action) já validou.
+// Documents
+export async function searchDocuments(filters: DocumentFilters = {}) {
+    noStore();
+    const {
+        query: textQuery,
+        types,
+        years,
+        program,
+        area,
+        tags,
+        hasAnswerKey,
+        sort = 'year_desc',
+        page = 1,
+        limit = 20,
+    } = filters;
 
-        const { rows } = await query(`
-            INSERT INTO attempts (user_id, config, status, total_questions, started_at)
-            VALUES ($1, $2, 'IN_PROGRESS', $3, NOW())
-            RETURNING *
-        `, [userId, JSON.stringify(config), config.questionCount || 0]);
+    let sql = 'SELECT * FROM documents WHERE 1=1';
+    const params: any[] = [];
+    let pIndex = 1;
 
-        return rows[0] as Attempt;
-    },
+    if (textQuery) {
+        sql += ` AND title ILIKE $${pIndex}`;
+        params.push(`%${textQuery}%`);
+        pIndex++;
+    }
 
-    async getAttempt(attemptId: string) {
-        noStore();
-        const { rows } = await query('SELECT * FROM attempts WHERE id = $1', [attemptId]);
-        if (!rows[0]) throw new Error('Attempt not found');
-        return rows[0] as Attempt;
-    },
+    if (types && types.length > 0) {
+        sql += ` AND type = ANY($${pIndex}::text[])`;
+        params.push(types);
+        pIndex++;
+    }
 
-    async finalizeAttempt(attemptId: string) {
-        const { rows } = await query(`
-            UPDATE attempts 
-            SET completed_at = NOW(), status = 'COMPLETED'
-            WHERE id = $1
-            RETURNING *
-        `, [attemptId]);
-        return rows[0] as Attempt;
-    },
+    if (years && years.length > 0) {
+        sql += ` AND year = ANY($${pIndex}::int[])`;
+        params.push(years);
+        pIndex++;
+    }
 
-    async getUserHistory(userId: string, limit = 20) {
-        noStore();
-        const { rows } = await query(`
-            SELECT * FROM attempts 
-            WHERE user_id = $1 
-            ORDER BY started_at DESC
-            LIMIT $2
-        `, [userId, limit]);
-        return rows as Attempt[];
-    },
+    if (program) {
+        sql += ` AND (program ILIKE $${pIndex} OR institution ILIKE $${pIndex})`;
+        params.push(`%${program}%`);
+        pIndex++;
+    }
 
-    // Attempt Answers
-    async upsertAttemptAnswer(answer: Partial<AttemptAnswer> & {
-        attempt_id: string;
-        question_index: number;
-    }) {
-        const { rows } = await query(`
-            INSERT INTO attempt_answers (attempt_id, question_index, choice, flagged, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, NOW(), NOW())
-            ON CONFLICT (attempt_id, question_index)
-            DO UPDATE SET
-                choice = EXCLUDED.choice,
-                flagged = EXCLUDED.flagged,
-                updated_at = NOW()
-            RETURNING *
-        `, [answer.attempt_id, answer.question_index, answer.choice || null, answer.flagged || false]);
+    if (area) {
+        sql += ` AND area = $${pIndex}`;
+        params.push(area);
+        pIndex++;
+    }
 
-        return rows[0] as AttemptAnswer;
-    },
+    if (hasAnswerKey !== undefined) {
+        sql += ` AND has_answer_key = $${pIndex}`;
+        params.push(hasAnswerKey);
+        pIndex++;
+    }
 
-    async getAttemptAnswers(attemptId: string) {
-        noStore();
-        const { rows } = await query(`
-            SELECT * FROM attempt_answers 
-            WHERE attempt_id = $1 
-            ORDER BY question_index
-        `, [attemptId]);
-        return rows as AttemptAnswer[];
-    },
+    // Count total before pagination
+    const countSql = `SELECT COUNT(*) as total FROM (${sql}) as sub`;
+    const { rows: countRows } = await query(countSql, params);
+    const count = parseInt(countRows[0].total);
 
-    // Questions
-    async getQuestionsByDocument(documentId: string) {
-        noStore();
-        const { rows } = await query(`
-            SELECT * FROM questions 
-            WHERE document_id = $1 
-            ORDER BY number_in_exam
-        `, [documentId]);
-        return rows as Question[];
-    },
+    // Sorting
+    const [sortField, sortDirection] = sort.split('_');
+    const dir = sortDirection === 'asc' ? 'ASC' : 'DESC';
+    if (sortField === 'year') {
+        sql += ` ORDER BY year ${dir} NULLS LAST`;
+    } else {
+        sql += ` ORDER BY title ${dir}`;
+    }
 
-    async getQuestion(questionId: string) {
-        noStore();
-        const { rows } = await query('SELECT * FROM questions WHERE id = $1', [questionId]);
-        if (!rows[0]) throw new Error('Question not found');
-        return rows[0] as Question;
-    },
+    // Pagination
+    const offset = (page - 1) * limit;
+    sql += ` LIMIT $${pIndex} OFFSET $${pIndex + 1}`;
+    params.push(limit, offset);
 
-    // User Preferences
-    async getUserPreferences(userId: string) {
-        noStore();
-        const { rows } = await query('SELECT * FROM user_preferences WHERE user_id = $1', [userId]);
-        return rows[0];
-    },
+    const { rows } = await query(sql, params);
 
-    async updateUserPreferences(userId: string, preferences: any) {
-        // Construir query dinâmica de update
-        const keys = Object.keys(preferences);
-        if (keys.length === 0) return null;
+    return {
+        data: rows.map((doc) => ({
+            ...doc,
+            tags: normalizeArray(doc.tags),
+        })) as Document[],
+        count: count,
+        page,
+        totalPages: Math.ceil(count / limit),
+    };
+}
 
-        const setClause = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
-        const values = keys.map(k => preferences[k]);
+export async function getDocument(docId: string) {
+    noStore();
+    const { rows } = await query('SELECT * FROM documents WHERE id = $1', [docId]);
+    const data = rows[0];
 
-        const { rows } = await query(`
-            INSERT INTO user_preferences (user_id, ${keys.join(', ')})
-            VALUES ($1, ${keys.map((_, i) => `$${i + 2}`).join(', ')})
-            ON CONFLICT (user_id) 
-            DO UPDATE SET ${setClause}
-            RETURNING *
-        `, [userId, ...values]);
+    if (!data) throw new Error('Document not found');
 
-        return rows[0];
-    },
+    return {
+        ...data,
+        tags: normalizeArray(data.tags),
+    } as Document;
+}
+
+// Attempts
+export async function createAttempt(config: AttemptConfig, userId: string) {
+    // Obter user real
+    // Nota: para endpoints seguros, deveríamos validar a sessão aqui também,
+    // mas assumimos que o chamador (Page/Action) já validou.
+
+    const { rows } = await query(`
+        INSERT INTO attempts (user_id, config, status, total_questions, started_at)
+        VALUES ($1, $2, 'IN_PROGRESS', $3, NOW())
+        RETURNING *
+    `, [userId, JSON.stringify(config), config.questionCount || 0]);
+
+    return rows[0] as Attempt;
+}
+
+export async function getAttempt(attemptId: string) {
+    noStore();
+    const { rows } = await query('SELECT * FROM attempts WHERE id = $1', [attemptId]);
+    if (!rows[0]) throw new Error('Attempt not found');
+    return rows[0] as Attempt;
+}
+
+export async function finalizeAttempt(attemptId: string) {
+    const { rows } = await query(`
+        UPDATE attempts 
+        SET completed_at = NOW(), status = 'COMPLETED'
+        WHERE id = $1
+        RETURNING *
+    `, [attemptId]);
+    return rows[0] as Attempt;
+}
+
+export async function getUserHistory(userId: string, limit = 20) {
+    noStore();
+    const { rows } = await query(`
+        SELECT * FROM attempts 
+        WHERE user_id = $1 
+        ORDER BY started_at DESC
+        LIMIT $2
+    `, [userId, limit]);
+    return rows as Attempt[];
+}
+
+// Attempt Answers
+export async function upsertAttemptAnswer(answer: Partial<AttemptAnswer> & {
+    attempt_id: string;
+    question_index: number;
+}) {
+    const { rows } = await query(`
+        INSERT INTO attempt_answers (attempt_id, question_index, choice, flagged, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, NOW(), NOW())
+        ON CONFLICT (attempt_id, question_index)
+        DO UPDATE SET
+            choice = EXCLUDED.choice,
+            flagged = EXCLUDED.flagged,
+            updated_at = NOW()
+        RETURNING *
+    `, [answer.attempt_id, answer.question_index, answer.choice || null, answer.flagged || false]);
+
+    return rows[0] as AttemptAnswer;
+}
+
+export async function getAttemptAnswers(attemptId: string) {
+    noStore();
+    const { rows } = await query(`
+        SELECT * FROM attempt_answers 
+        WHERE attempt_id = $1 
+        ORDER BY question_index
+    `, [attemptId]);
+    return rows as AttemptAnswer[];
+}
+
+// Questions
+export async function getQuestionsByDocument(documentId: string) {
+    noStore();
+    const { rows } = await query(`
+        SELECT * FROM questions 
+        WHERE document_id = $1 
+        ORDER BY number_in_exam
+    `, [documentId]);
+    return rows as Question[];
+}
+
+export async function getQuestion(questionId: string) {
+    noStore();
+    const { rows } = await query('SELECT * FROM questions WHERE id = $1', [questionId]);
+    if (!rows[0]) throw new Error('Question not found');
+    return rows[0] as Question;
+}
+
+// User Preferences
+export async function getUserPreferences(userId: string) {
+    noStore();
+    const { rows } = await query('SELECT * FROM user_preferences WHERE user_id = $1', [userId]);
+    return rows[0];
+}
+
+export async function updateUserPreferences(userId: string, preferences: any) {
+    // Construir query dinâmica de update
+    const keys = Object.keys(preferences);
+    if (keys.length === 0) return null;
+
+    const setClause = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
+    const values = keys.map(k => preferences[k]);
+
+    const { rows } = await query(`
+        INSERT INTO user_preferences (user_id, ${keys.join(', ')})
+        VALUES ($1, ${keys.map((_, i) => `$${i + 2}`).join(', ')})
+        ON CONFLICT (user_id) 
+        DO UPDATE SET ${setClause}
+        RETURNING *
+    `, [userId, ...values]);
+
+    return rows[0];
+}
+
+// Backward compatibility object
+export const dataService = {
+    getAvailableFilters,
+    searchDocuments,
+    getDocument,
+    createAttempt,
+    getAttempt,
+    finalizeAttempt,
+    getUserHistory,
+    upsertAttemptAnswer,
+    getAttemptAnswers,
+    getQuestionsByDocument,
+    getQuestion,
+    getUserPreferences,
+    updateUserPreferences
 };

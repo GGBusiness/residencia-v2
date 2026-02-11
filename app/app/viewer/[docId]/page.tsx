@@ -6,7 +6,7 @@ import { ArrowLeft, Download, ExternalLink } from 'lucide-react';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { dataService, type Document } from '@/lib/data-service';
+import { getDocument, type Document } from '@/lib/data-service';
 import Link from 'next/link';
 
 export default function ViewerPage() {
@@ -22,7 +22,7 @@ export default function ViewerPage() {
         const loadDocument = async () => {
             try {
                 setLoading(true);
-                const doc = await dataService.getDocument(docId);
+                const doc = await getDocument(docId);
                 setDocument(doc);
             } catch (err) {
                 console.error('Error loading document:', err);

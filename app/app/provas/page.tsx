@@ -6,7 +6,7 @@ import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { CardSkeleton } from '@/components/ui/Skeleton';
-import { dataService, type Document } from '@/lib/data-service';
+import { searchDocuments, type Document } from '@/lib/data-service';
 import { debounce } from '@/lib/utils';
 import Link from 'next/link';
 
@@ -32,7 +32,7 @@ export default function ProvasPage() {
     const loadDocuments = async () => {
         setLoading(true);
         try {
-            const result = await dataService.searchDocuments({
+            const result = await searchDocuments({
                 query: search,
                 types: ['PROVA', 'EXAM'],
                 area: filters.area || undefined,

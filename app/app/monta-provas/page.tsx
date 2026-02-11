@@ -7,7 +7,7 @@ import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { useRouter } from 'next/navigation';
-import { dataService, type AttemptConfig } from '@/lib/data-service';
+import { getAvailableFilters, createAttempt, type AttemptConfig } from '@/lib/data-service';
 import { useUser } from '@/hooks/useUser';
 
 type Step = 'welcome' | 'objective' | 'programs' | 'area' | 'difficulty' | 'questions' | 'years' | 'feedback' | 'plan';
@@ -68,7 +68,7 @@ export default function MontaProvasPage() {
     useEffect(() => {
         async function loadFilters() {
             try {
-                const filters = await dataService.getAvailableFilters();
+                const filters = await getAvailableFilters();
                 if (filters) {
                     setAvailablePrograms(filters.institutions);
                     setAvailableYears(filters.years);
@@ -207,7 +207,7 @@ export default function MontaProvasPage() {
                 difficulty: config.difficulty,
             };
 
-            const attempt = await dataService.createAttempt(attemptConfig, '00000000-0000-0000-0000-000000000001');
+            const attempt = await createAttempt(attemptConfig, '00000000-0000-0000-0000-000000000001');
             router.push(`/app/quiz/${attempt.id}`);
         } catch (error) {
             console.error('Error creating attempt:', error);
