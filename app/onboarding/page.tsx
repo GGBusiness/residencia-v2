@@ -38,7 +38,7 @@ export default function OnboardingPage() {
         'SUS-SP',
         'SUS-RJ',
         'INCA',
-        'Outros',
+        'Todos',
     ];
 
     const specialties = [
@@ -55,7 +55,7 @@ export default function OnboardingPage() {
         'Psiquiatria',
         'Dermatologia',
         'Oftalmologia',
-        'Outros',
+        'Todos',
     ];
 
     const timeframes = [

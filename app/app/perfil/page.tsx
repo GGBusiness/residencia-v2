@@ -134,7 +134,7 @@ export default function ProfilePage() {
                                     className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2.5 bg-white border"
                                 >
                                     <option value="">Selecione...</option>
-                                    {['ENARE', 'USP', 'UNICAMP', 'SUS-SP', 'UNIFESP', 'UFRJ', 'PSU-MG'].map(inst => (
+                                    {['ENARE', 'ENAMED', 'USP', 'UNICAMP', 'UNIFESP', 'SUS-SP', 'SUS-RJ', 'INCA', 'Todos'].map(inst => (
                                         <option key={inst} value={inst}>{inst}</option>
                                     ))}
                                 </select>
