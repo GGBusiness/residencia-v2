@@ -58,7 +58,8 @@ export default function ProfilePage() {
 
         try {
             if (activeTab === 'dados') {
-                await updateUserDataAction(user.id, { name: formData.name });
+                const { syncUserAction } = await import('@/app/actions/user-actions');
+                await syncUserAction(user.id, user.email, formData.name);
             } else if (activeTab === 'rotina') {
                 await updateProfileSettingsAction(user.id, { best_study_time: formData.bestStudyTime });
             } else if (activeTab === 'metas') {

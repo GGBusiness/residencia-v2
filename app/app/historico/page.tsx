@@ -11,15 +11,19 @@ import { useUser } from '@/hooks/useUser';
 
 export default function HistoricoPage() {
     const router = useRouter();
-    const { user, firstName } = useUser();
+    const { user, firstName, loading: userLoading } = useUser();
     const [attempts, setAttempts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        if (userLoading) return;
+
         if (user) {
             loadHistory();
+        } else {
+            setLoading(false);
         }
-    }, [user]);
+    }, [user, userLoading]);
 
     const loadHistory = async () => {
         try {

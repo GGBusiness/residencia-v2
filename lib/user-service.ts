@@ -57,19 +57,28 @@ class UserService {
         }
     }
 
-    // Criar novo usuário (Geralmente via Auth Hook, mas mantendo utilitário)
-    async createUser(name: string, email: string, id: string): Promise<User | null> {
+    // Sincronizar usuário (UPSERT) - Garante que existe na tabela public.users
+    async syncUser(id: string, email: string, name: string): Promise<User | null> {
         try {
             const { rows } = await query(`
-                INSERT INTO users (id, name, email, onboarding_completed)
-                VALUES ($1, $2, $3, FALSE)
+                INSERT INTO users (id, email, name, last_login)
+                VALUES ($1, $2, $3, NOW())
+                ON CONFLICT (id) DO UPDATE 
+                SET email = EXCLUDED.email,
+                    name = EXCLUDED.name,
+                    last_login = NOW()
                 RETURNING *
-            `, [id, name, email]);
+            `, [id, email, name]);
             return rows[0];
         } catch (error) {
-            console.error('Error creating user:', error);
+            console.error('Error syncing user:', error);
             return null;
         }
+    }
+
+    // Criar novo usuário (Geralmente via Auth Hook, mas mantendo utilitário)
+    async createUser(name: string, email: string, id: string): Promise<User | null> {
+        return this.syncUser(id, email, name);
     }
 
     // Obter perfil do usuário

@@ -68,6 +68,15 @@ export async function updateUserDataAction(userId: string, data: { name?: string
     }
 }
 
+export async function syncUserAction(userId: string, email: string, name: string) {
+    try {
+        const user = await userService.syncUser(userId, email, name);
+        return { success: true, data: user };
+    } catch (error) {
+        return { success: false, error: 'Failed to sync user' };
+    }
+}
+
 export async function updateProfileSettingsAction(userId: string, data: any) {
     try {
         await userService.updateProfile(userId, data);

@@ -69,8 +69,8 @@ export function useUser() {
                 // (Para que na próxima vez ele exista)
                 try {
                     // Importar dinamicamente para evitar erro de ciclo se houver
-                    const { updateUserDataAction } = await import('@/app/actions/user-actions');
-                    await updateUserDataAction(sbUser.id, { name: finalUser.name });
+                    const { syncUserAction } = await import('@/app/actions/user-actions');
+                    await syncUserAction(sbUser.id, finalUser.email, finalUser.name);
                 } catch (err) {
                     console.warn('Background user sync failed', err);
                 }

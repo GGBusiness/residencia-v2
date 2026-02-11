@@ -12,16 +12,20 @@ import { useUser } from '@/hooks/useUser';
 
 export default function MetasPage() {
     const router = useRouter();
-    const { user } = useUser();
+    const { user, loading: userLoading } = useUser();
     const [stats, setStats] = useState<UserStats | null>(null);
     const [cutScores, setCutScores] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        if (userLoading) return;
+
         if (user?.id) {
             loadMetas();
+        } else {
+            setLoading(false);
         }
-    }, [user?.id]);
+    }, [user?.id, userLoading]);
 
     const loadMetas = async () => {
         try {
