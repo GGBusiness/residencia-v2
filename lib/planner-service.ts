@@ -1,100 +1,104 @@
 
-import { userService, type UserProfile, type UserGoals } from '@/lib/user-service';
-import { dataService } from '@/lib/data-service';
+import { db, query } from './db';
 
-export interface DailyPlan {
-    message: string;
-    focusArea: string;
-    recommendedConfig: {
-        program?: string;
-        area?: string;
-        questionCount: number;
-        years: number[];
-    };
-}
+// Mapeamento de horários
+const TIME_RANGES = {
+    'manha': { start: '08:00', end: '11:00' },
+    'tarde': { start: '14:00', end: '17:00' },
+    'noite': { start: '19:00', end: '22:00' },
+    'madrugada': { start: '23:00', end: '02:00' },
+    'variavel': { start: '20:00', end: '23:00' }, // Default fallback
+};
 
-class PlannerService {
-    /**
-     * Gera um plano de estudo diário baseado no perfil e meta do usuário
-     */
-    async getDailyPlan(userId: string): Promise<DailyPlan | null> {
-        try {
-            // 1. Obter dados do usuário
-            const profile = await userService.getUserProfile(userId);
-            const goals = await userService.getUserGoals(userId);
+export async function generateWeeklySchedule(userId: string) {
+    try {
+        console.log('📅 Generating Smart Schedule for:', userId);
 
-            if (!profile || !goals) return null;
+        // 1. Get User Profile & Goals
+        const { rows: profiles } = await query('SELECT * FROM user_profiles WHERE user_id = $1', [userId]);
+        if (profiles.length === 0) throw new Error('Perfil não encontrado');
+        const profile = profiles[0];
 
-            // 2. Definir estratégia baseada no dia da semana (simulado)
-            // Em produção, isso leria o histórico de tentativas para ver pontos fracos
-            const dayOfWeek = new Date().getDay(); // 0 = Domingo, 1 = Segunda...
+        const { rows: goals } = await query('SELECT * FROM user_goals WHERE user_id = $1', [userId]);
+        const goal = goals[0] || { weekly_hours_goal: 20 };
 
-            // Estratégia simples:
-            // Segunda/Quarta/Sexta: Foco na Meta Principal (Instituição)
-            // Terça/Quinta: Foco na Especialidade Alvo (Area)
-            // Sábado/Domingo: Simulado Geral / Revisão
+        // 2. Clear existing future events (optional, maybe keep manual ones?)
+        // For now, let's just append.
 
-            const isInstitutionDay = [1, 3, 5].includes(dayOfWeek);
-            const isWeekend = [0, 6].includes(dayOfWeek);
+        // 3. Calculate sessions
+        const weeklyHours = goal.weekly_hours_goal;
+        const daysPerWeek = 5; // Study days
+        const hoursPerDay = weeklyHours / daysPerWeek;
+        const sessionsPerDay = Math.ceil(hoursPerDay);
 
-            let message = '';
-            let focusArea = '';
-            let recommendedConfig = {
-                program: undefined as string | undefined,
-                area: undefined as string | undefined,
-                questionCount: 20, // Default rápido
-                years: [2024, 2025, 2026] // Anos recentes
-            };
+        const bestTime = TIME_RANGES[profile.best_study_time as keyof typeof TIME_RANGES] || TIME_RANGES['noite'];
 
-            const targetInstitution = profile.target_institution;
-            const targetSpecialty = profile.target_specialty || 'Clínica Médica'; // Fallback
+        // Rotatividade de Matérias (Mockada por enquanto)
+        const rotation = [
+            profile.target_specialty || 'Clínica Médica',
+            'Cirurgia Geral',
+            'Pediatria',
+            'Ginecologia e Obstetrícia',
+            'Medicina Preventiva',
+            'Cirurgia Geral', // Heavy rotation
+            'Clínica Médica'  // Heavy rotation
+        ];
 
-            // Mapear especialidade para Área do banco
-            const areaMap: Record<string, string> = {
-                'Cardiologia': 'Clínica Médica',
-                'Dermatologia': 'Clínica Médica',
-                'Endocrinologia': 'Clínica Médica',
-                'Gastroenterologia': 'Clínica Médica',
-                'Pediatria': 'Pediatria',
-                'Ginecologia': 'GO',
-                'Obstetrícia': 'GO',
-                'Cirurgia Geral': 'Cirurgia',
-                'Anestesiologia': 'Cirurgia',
-                'Psiquiatria': 'Clínica Médica', // Aprox
-                'Preventiva': 'Preventiva',
-                'Infectologia': 'Clínica Médica'
-            };
+        let eventsToInsert = [];
+        let today = new Date();
 
-            const dbArea = areaMap[targetSpecialty] || 'Clínica Médica';
+        // Generate for next 4 weeks
+        for (let week = 0; week < 4; week++) {
+            for (let day = 0; day < 7; day++) {
+                let currentDay = new Date(today);
+                currentDay.setDate(today.getDate() + (week * 7) + day);
 
-            if (isWeekend) {
-                message = `Hoje é dia de simulado focado na ${targetInstitution}! 🚀`;
-                focusArea = 'Simulado Geral';
-                recommendedConfig.program = targetInstitution;
-                recommendedConfig.questionCount = 50; // Mais longo no FDS
-            } else if (isInstitutionDay) {
-                message = `Vamos dominar as provas da ${targetInstitution} hoje?`;
-                focusArea = `Foco em ${targetInstitution}`;
-                recommendedConfig.program = targetInstitution;
-                recommendedConfig.questionCount = Math.ceil(goals.daily_hours_goal * 15); // Aprox 15 questões por hora
-            } else {
-                message = `Hoje o foco é fortalecer sua base em ${dbArea}.`;
-                focusArea = dbArea;
-                recommendedConfig.area = dbArea;
-                recommendedConfig.questionCount = Math.ceil(goals.daily_hours_goal * 15);
+                // Skip weekends (optional logic, let's keep it simple: Monday-Friday)
+                const dayOfWeek = currentDay.getDay(); // 0 = Sun, 6 = Sat
+                if (dayOfWeek === 0 || dayOfWeek === 6) {
+                    // Weekend Review?
+                    if (dayOfWeek === 6) {
+                        eventsToInsert.push({
+                            user_id: userId,
+                            title: 'Revisão Semanal',
+                            event_type: 'review',
+                            date: currentDay.toISOString().split('T')[0],
+                            start_time: '10:00',
+                            end_time: '12:00',
+                            completed: false
+                        });
+                    }
+                    continue;
+                }
+
+                // Create Study Session
+                const subject = rotation[(week * 5 + day) % rotation.length];
+
+                eventsToInsert.push({
+                    user_id: userId,
+                    title: `Estudo: ${subject}`,
+                    area: subject,
+                    event_type: 'study',
+                    date: currentDay.toISOString().split('T')[0],
+                    start_time: bestTime.start,
+                    end_time: bestTime.end,
+                    completed: false
+                });
             }
-
-            return {
-                message,
-                focusArea,
-                recommendedConfig
-            };
-
-        } catch (error) {
-            console.error('Error generating daily plan:', error);
-            return null;
         }
+
+        // 4. Batch Insert
+        for (const event of eventsToInsert) {
+            await query(`
+                INSERT INTO study_events (user_id, title, event_type, area, date, start_time, end_time, completed)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            `, [event.user_id, event.title, event.event_type, event.area, event.date, event.start_time, event.end_time, event.completed]);
+        }
+
+        return { success: true, count: eventsToInsert.length };
+
+    } catch (error: any) {
+        console.error('Error generating schedule:', error);
+        return { success: false, error: error.message };
     }
 }
-
-export const plannerService = new PlannerService();

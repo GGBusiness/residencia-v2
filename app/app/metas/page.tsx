@@ -73,7 +73,7 @@ export default function MetasPage() {
             {stats && stats.totalAttempts > 0 && (
                 <Card className="mb-8 bg-gradient-to-r from-primary-600 to-purple-600 text-white">
                     <CardBody className="p-6">
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                             <div>
                                 <p className="text-white/80 text-sm mb-1">Sua Média</p>
                                 <p className="text-3xl font-bold">{stats.averagePercentage.toFixed(0)}%</p>
@@ -81,6 +81,12 @@ export default function MetasPage() {
                             <div>
                                 <p className="text-white/80 text-sm mb-1">Provas Feitas</p>
                                 <p className="text-3xl font-bold">{stats.totalAttempts}</p>
+                            </div>
+                            <div>
+                                <p className="text-white/80 text-sm mb-1">Horário de Ouro</p>
+                                <p className="text-3xl font-bold capitalize">
+                                    {(user as any)?.best_study_time || '-----'}
+                                </p>
                             </div>
                             <div>
                                 <p className="text-white/80 text-sm mb-1">Meta ENARE</p>

@@ -9,7 +9,8 @@ import { type OnboardingData } from '@/lib/user-service';
 import { completeOnboardingAction } from '@/app/actions/user-actions';
 import { ArrowRight, ArrowLeft, CheckCircle2, Sparkles } from 'lucide-react';
 
-type Step = 1 | 2 | 3 | 4 | 5 | 6;
+
+type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export default function OnboardingPage() {
     const router = useRouter();
@@ -25,6 +26,7 @@ export default function OnboardingPage() {
         weekly_hours: 20,
         has_attempted_before: false,
         theoretical_base: 'media',
+        best_study_time: 'noite',
     });
 
     const institutions = [
@@ -86,7 +88,7 @@ export default function OnboardingPage() {
     }, [router]);
 
     const handleNext = () => {
-        if (currentStep < 6) {
+        if (currentStep < 7) {
             setCurrentStep((currentStep + 1) as Step);
         }
     };
@@ -145,14 +147,16 @@ export default function OnboardingPage() {
                 return formData.target_specialty !== '';
             case 5:
                 return formData.weekly_hours > 0;
-            case 6:
+            case 6: // Best Study Time
+                return true;
+            case 7: // Theoretical Base
                 return true;
             default:
                 return false;
         }
     };
 
-    const progress = (currentStep / 6) * 100;
+    const progress = (currentStep / 7) * 100;
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-primary-50 via-purple-50 to-pink-50 flex items-center justify-center p-4">
@@ -173,7 +177,7 @@ export default function OnboardingPage() {
                 {/* Progress Bar */}
                 <div className="mb-8">
                     <div className="flex justify-between text-sm text-gray-600 mb-2">
-                        <span>Etapa {currentStep} de 6</span>
+                        <span>Etapa {currentStep} de 7</span>
                         <span>{Math.round(progress)}%</span>
                     </div>
                     <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -351,8 +355,45 @@ export default function OnboardingPage() {
                             </div>
                         )}
 
-                        {/* Step 6: Base Teórica */}
+                        {/* Step 6: Horário de Ouro (Novo) */}
                         {currentStep === 6 && (
+                            <div className="space-y-6">
+                                <div>
+                                    <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                                        Qual seu horário de ouro? 🌟
+                                    </h2>
+                                    <p className="text-gray-600">
+                                        Aquele momento em que você rende mais. Vamos priorizá-lo!
+                                    </p>
+                                </div>
+                                <div className="space-y-3">
+                                    {[
+                                        { id: 'manha', label: 'Manhã (07h - 12h)', icon: '🌅' },
+                                        { id: 'tarde', label: 'Tarde (13h - 18h)', icon: '☀️' },
+                                        { id: 'noite', label: 'Noite (19h - 23h)', icon: '🌙' },
+                                        { id: 'madrugada', label: 'Madrugada (23h - 04h)', icon: '🦉' },
+                                        { id: 'variavel', label: 'Variável (Depende do plantão)', icon: '🔀' },
+                                    ].map((time) => (
+                                        <button
+                                            key={time.id}
+                                            onClick={() => setFormData({ ...formData, best_study_time: time.id as any })}
+                                            className={`w-full p-4 rounded-lg border-2 transition-all text-left flex items-center gap-4 ${formData.best_study_time === time.id
+                                                ? 'border-primary-500 bg-primary-50 text-primary-700 font-semibold'
+                                                : 'border-gray-300 hover:border-primary-300'
+                                                }`}
+                                        >
+                                            <span className="text-2xl">{time.icon}</span>
+                                            <div>
+                                                <p className="font-semibold">{time.label}</p>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Step 7: Base Teórica (Original Step 6) */}
+                        {currentStep === 7 && (
                             <div className="space-y-6">
                                 <div>
                                     <h2 className="text-2xl font-bold text-gray-900 mb-2">
@@ -427,7 +468,7 @@ export default function OnboardingPage() {
                         </Button>
                     )}
 
-                    {currentStep < 6 ? (
+                    {currentStep < 7 ? (
                         <Button
                             variant="primary"
                             onClick={handleNext}

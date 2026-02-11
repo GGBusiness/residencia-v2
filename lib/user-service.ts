@@ -19,7 +19,7 @@ export interface UserProfile {
     exam_timeframe: 'menos_3_meses' | '3_6_meses' | '6_12_meses' | 'mais_1_ano';
     weekly_hours: number;
     has_attempted_before: boolean;
-    theoretical_base: 'fraca' | 'media' | 'boa' | 'excelente';
+    best_study_time: 'manha' | 'tarde' | 'noite' | 'madrugada' | 'variavel';
 }
 
 export interface UserGoals {
@@ -42,6 +42,7 @@ export interface OnboardingData {
     weekly_hours: number;
     has_attempted_before: boolean;
     theoretical_base: 'fraca' | 'media' | 'boa' | 'excelente';
+    best_study_time: 'manha' | 'tarde' | 'noite' | 'madrugada' | 'variavel';
 }
 
 class UserService {
@@ -118,15 +119,16 @@ class UserService {
             try {
                 await query(`
                     INSERT INTO user_profiles 
-                    (user_id, target_institution, target_specialty, exam_timeframe, weekly_hours, has_attempted_before, theoretical_base)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    (user_id, target_institution, target_specialty, exam_timeframe, weekly_hours, has_attempted_before, theoretical_base, best_study_time)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                     ON CONFLICT (user_id) DO UPDATE
                     SET target_institution = EXCLUDED.target_institution,
                         target_specialty = EXCLUDED.target_specialty,
                         exam_timeframe = EXCLUDED.exam_timeframe,
                         weekly_hours = EXCLUDED.weekly_hours,
                         has_attempted_before = EXCLUDED.has_attempted_before,
-                        theoretical_base = EXCLUDED.theoretical_base
+                        theoretical_base = EXCLUDED.theoretical_base,
+                        best_study_time = EXCLUDED.best_study_time
                 `, [
                     userId,
                     onboardingData.target_institution,
@@ -134,7 +136,8 @@ class UserService {
                     onboardingData.exam_timeframe,
                     onboardingData.weekly_hours,
                     onboardingData.has_attempted_before,
-                    onboardingData.theoretical_base
+                    onboardingData.theoretical_base,
+                    onboardingData.best_study_time
                 ]);
             } catch (err: any) {
                 console.error('Error updating user profile:', err);
