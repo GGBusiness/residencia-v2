@@ -40,24 +40,25 @@ export async function ingestPDFAction(formData: FormData) {
 
         console.log(`  ✅ Texto extraído: ${pdfText.length} caracteres`);
 
-        // 3. Enviar para Claude (Anthropic) para extração
-        const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-        if (!ANTHROPIC_API_KEY) throw new Error('Chave da Anthropic não configurada.');
+        // 3. Enviar para OpenAI (GPT-4o) para extração
+        // Trocamos Anthropic por OpenAI para simplificar chaves
+        const { OpenAI } = await import('openai');
+        const openai = new OpenAI({
+            apiKey: process.env.OPENAI_API_KEY,
+        });
 
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': ANTHROPIC_API_KEY,
-                'anthropic-version': '2023-06-01',
-            },
-            body: JSON.stringify({
-                model: 'claude-3-haiku-20240307',
-                max_tokens: 4096,
-                messages: [{
-                    role: 'user',
-                    content: `Você é um especialista em extrair questões de provas médicas.
-EXTRAIA AS QUESTÕES DESTE TEXTO.
+        if (!process.env.OPENAI_API_KEY) throw new Error('Chave da OpenAI não configurada.');
+
+        const completion = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [
+                {
+                    role: "system",
+                    content: "Você é um especialista em extrair questões de provas médicas. Retorne APENAS um JSON válido."
+                },
+                {
+                    role: "user",
+                    content: `EXTRAIA AS QUESTÕES DESTE TEXTO.
 Para cada questão, retorne JSON com:
 {
     "question_text": "texto do enunciado",
@@ -71,42 +72,57 @@ Para cada questão, retorne JSON com:
     "explanation": "..." (se houver comentado)
 }
 
-Retorne APENAS um array JSON.
+Retorne APENAS um array JSON puro, sem markdown (\`\`\`json).
 
 TEXTO:
 ${pdfText.slice(0, 50000)}`
-                }]
-            })
+                }
+            ],
+            response_format: { type: "json_object" }, // Garante JSON válido
+            temperature: 0.2, // Mais preciso
         });
 
-        if (!response.ok) {
-            const errText = await response.text();
-            throw new Error(`Erro na API Anthropic: ${errText}`);
+        const contentText = completion.choices[0].message.content;
+
+        // Tenta extrair JSON caso venha com texto extra (embora response_format evite isso)
+        let extractedQuestions = [];
+        try {
+            // O modo json_object do GPT-4o pode retornar um objeto { "questions": [...] } ou apenas array dependendo do prompt
+            // Vamos garantir o parse
+            const parsed = JSON.parse(contentText || '[]');
+
+            if (Array.isArray(parsed)) {
+                extractedQuestions = parsed;
+            } else if (parsed.questions && Array.isArray(parsed.questions)) {
+                extractedQuestions = parsed.questions;
+            } else {
+                // Tenta achar array dentro das chaves
+                const values = Object.values(parsed);
+                const arrayFound = values.find(v => Array.isArray(v));
+                if (arrayFound) extractedQuestions = arrayFound as any[];
+            }
+
+            if (extractedQuestions.length === 0) throw new Error('Nenhuma questão encontrada no JSON.');
+
+        } catch (e) {
+            console.error('JSON Parse Error:', contentText);
+            throw new Error('Falha ao processar resposta da IA.');
         }
 
-        const apiData = await response.json();
-        const contentText = apiData.content[0].text;
-        const jsonMatch = contentText.match(/\[[\s\S]*\]/);
-
-        if (!jsonMatch) throw new Error('IA não retornou JSON válido.');
-
-        const extractedQuestions = JSON.parse(jsonMatch[0]);
         console.log(`  ✅ ${extractedQuestions.length} questões identificadas pela IA`);
 
         // Detectar metadados básicos pelo nome do arquivo
         const filename = file.name.toLowerCase();
 
         // Log Usage
-        const usage = apiData.usage || { input_tokens: 0, output_tokens: 0 };
+        const usage = completion.usage || { prompt_tokens: 0, completion_tokens: 0 };
         try {
-            // Dynamically import tracker to avoid build issues if file not found during static analysis?
-            // improved: regular import since we created the file
             const { aiTracker } = await import('@/lib/ai-tracker');
             await aiTracker.logUsage({
-                provider: 'anthropic',
-                model: 'claude-3-haiku-20240307',
-                tokensInput: usage.input_tokens || 0,
-                tokensOutput: usage.output_tokens || 0,
+                provider: 'openai',
+                model: 'gpt-4o',
+                tokensInput: usage.prompt_tokens || 0,
+                tokensOutput: usage.completion_tokens || 0,
                 context: `ingest_pdf: ${filename}`,
                 userId: undefined // Admin action
             });

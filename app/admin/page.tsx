@@ -3,15 +3,16 @@
 import { useState, useEffect } from 'react';
 import { Card, CardBody, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Activity, Upload, DollarSign, Users, Database, FileText, TrendingUp, Clock, UserPlus } from 'lucide-react';
+import { Activity, Upload, DollarSign, Users, Database, FileText, TrendingUp, Clock, UserPlus, BrainCircuit } from 'lucide-react';
 import { getAdminStatsAction, getAdminCostsAction, setupAdminSchemaAction } from '@/app/actions/admin-actions';
 import { ingestPDFAction } from '@/app/actions/admin-ingest';
 import { logoutAdminAction } from '@/app/actions/admin-auth';
 import { useRouter } from 'next/navigation';
+import KnowledgeBaseTab from './knowledge/KnowledgeTab';
 
 export default function AdminDashboard() {
     const router = useRouter();
-    const [activeTab, setActiveTab] = useState<'overview' | 'content' | 'finance'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'content' | 'finance' | 'knowledge'>('overview');
     const [stats, setStats] = useState<any>(null);
     const [costs, setCosts] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -52,7 +53,6 @@ export default function AdminDashboard() {
 
     const handleLogout = async () => {
         await logoutAdminAction();
-        router.refresh();
         router.push('/admin/login');
     };
 
@@ -102,6 +102,13 @@ export default function AdminDashboard() {
                         className="gap-2"
                     >
                         <Upload className="w-4 h-4" /> Conteúdo (IA)
+                    </Button>
+                    <Button
+                        variant={activeTab === 'knowledge' ? 'primary' : 'outline'}
+                        onClick={() => setActiveTab('knowledge')}
+                        className="gap-2"
+                    >
+                        <BrainCircuit className="w-4 h-4" /> Treinamento (RAG)
                     </Button>
                     <Button
                         variant={activeTab === 'finance' ? 'primary' : 'outline'}
@@ -186,25 +193,82 @@ export default function AdminDashboard() {
                         </Card>
                     </div>
 
-                    {/* GRÁFICOS E DETALHES (Placeholder) */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <Card className="h-64 flex items-center justify-center bg-slate-50 border-dashed">
-                            <p className="text-slate-400">Gráfico de Novos Usuários (Em Breve)</p>
+                    {/* ANALYTICS WIDGETS */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Top Institutions */}
+                        <Card>
+                            <CardHeader className="p-4 border-b font-semibold text-slate-700 bg-slate-50">
+                                Instituições Mais Buscadas
+                            </CardHeader>
+                            <CardBody className="p-0">
+                                {stats?.analytics?.topInstitutions?.map((item: any, i: number) => (
+                                    <div key={i} className="flex justify-between p-3 border-b last:border-0 hover:bg-slate-50">
+                                        <span className="text-sm font-medium text-slate-600">{i + 1}. {item.name || 'N/A'}</span>
+                                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                                            {item.usage_count} provas
+                                        </span>
+                                    </div>
+                                ))}
+                                {(!stats?.analytics?.topInstitutions?.length) && (
+                                    <p className="p-4 text-center text-slate-400 text-sm">Sem dados suficientes.</p>
+                                )}
+                            </CardBody>
                         </Card>
-                        <Card className="h-64 flex items-center justify-center bg-slate-50 border-dashed">
-                            <p className="text-slate-400">Atividade por Horário (Em Breve)</p>
+
+                        {/* Top Areas */}
+                        <Card>
+                            <CardHeader className="p-4 border-b font-semibold text-slate-700 bg-slate-50">
+                                Áreas Mais Praticadas
+                            </CardHeader>
+                            <CardBody className="p-0">
+                                {stats?.analytics?.topAreas?.map((item: any, i: number) => (
+                                    <div key={i} className="flex justify-between p-3 border-b last:border-0 hover:bg-slate-50">
+                                        <span className="text-sm font-medium text-slate-600 truncate max-w-[180px]" title={item.area}>
+                                            {item.area || 'Geral'}
+                                        </span>
+                                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                                            {item.count} questões
+                                        </span>
+                                    </div>
+                                ))}
+                                {(!stats?.analytics?.topAreas?.length) && (
+                                    <p className="p-4 text-center text-slate-400 text-sm">Sem dados suficientes.</p>
+                                )}
+                            </CardBody>
+                        </Card>
+
+                        {/* Top Specialties */}
+                        <Card>
+                            <CardHeader className="p-4 border-b font-semibold text-slate-700 bg-slate-50">
+                                Especialidades Alvo (Users)
+                            </CardHeader>
+                            <CardBody className="p-0">
+                                {stats?.analytics?.topSpecialties?.map((item: any, i: number) => (
+                                    <div key={i} className="flex justify-between p-3 border-b last:border-0 hover:bg-slate-50">
+                                        <span className="text-sm font-medium text-slate-600 truncate max-w-[180px]">
+                                            {item.specialty || 'Não informado'}
+                                        </span>
+                                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                                            {item.count} usuários
+                                        </span>
+                                    </div>
+                                ))}
+                                {(!stats?.analytics?.topSpecialties?.length) && (
+                                    <p className="p-4 text-center text-slate-400 text-sm">Sem dados suficientes.</p>
+                                )}
+                            </CardBody>
                         </Card>
                     </div>
                 </div>
             )}
 
-            {/* TAB: CONTENT */}
+            {/* TAB: CONTENT (PDF Upload - Old) */}
             {activeTab === 'content' && (
                 <Card>
                     <CardHeader className="border-b bg-slate-50 p-6">
                         <h2 className="text-xl font-bold flex items-center gap-2">
                             <FileText className="w-5 h-5 text-indigo-600" />
-                            Ingestão de Provas (PDF)
+                            Ingestão de Provas (Extração de Questões)
                         </h2>
                     </CardHeader>
                     <CardBody className="p-8 border-2 border-dashed border-slate-300 rounded-b-xl m-6 bg-slate-50 transition-colors">
@@ -215,7 +279,7 @@ export default function AdminDashboard() {
                             <div>
                                 <h3 className="text-lg font-semibold text-slate-700">Selecione o PDF da Prova</h3>
                                 <p className="text-slate-500 text-sm mt-1">
-                                    Processamento automático com Claude 3 Haiku.<br />
+                                    Processamento automático com GPT-4o.<br />
                                     Extrai questões, gabarito e gera embeddings.
                                 </p>
                             </div>
@@ -244,6 +308,11 @@ export default function AdminDashboard() {
                         </div>
                     </CardBody>
                 </Card>
+            )}
+
+            {/* TAB: KNOWLEDGE BASE (New RAG) */}
+            {activeTab === 'knowledge' && (
+                <KnowledgeBaseTab />
             )}
 
             {/* TAB: FINANCE */}

@@ -6,65 +6,49 @@ const s3Client = new S3Client({
     region: process.env.SPACES_REGION || 'nyc3',
     endpoint: process.env.SPACES_ENDPOINT || 'https://nyc3.digitaloceanspaces.com',
     credentials: {
-        accessKeyId: process.env.SPACES_KEY || '',
-        secretAccessKey: process.env.SPACES_SECRET || '',
+        accessKeyId: process.env.SPACES_KEY!,
+        secretAccessKey: process.env.SPACES_SECRET!,
     },
 });
 
-const BUCKET_NAME = process.env.SPACES_BUCKET || 'residencia-files-prod';
+const BUCKET = process.env.SPACES_BUCKET || 'residencia-files-prod';
 
 export const storageService = {
     /**
-     * Upload de arquivo para o Spaces
+     * Gera uma URL pré-assinada para UPLOAD direto do frontend.
+     * @param fileName Nome do arquivo (ex: 'apostilas/cardiologia.pdf')
+     * @param contentType Tipo MIME (ex: 'application/pdf')
      */
-    async uploadFile(file: File | Buffer, path: string, contentType: string) {
+    async getUploadUrl(fileName: string, contentType: string) {
+        const key = `knowledge-base/${Date.now()}-${fileName}`;
         const command = new PutObjectCommand({
-            Bucket: BUCKET_NAME,
-            Key: path,
-            Body: file,
-            // ACL: 'public-read', // Removido temporariamente para evitar erro de permissão (Access Denied)
+            Bucket: BUCKET,
+            Key: key,
             ContentType: contentType,
+            ACL: 'public-read', // Arquivos públicos para facilitar acesso (ajuste se necessário)
         });
 
-        try {
-            await s3Client.send(command);
-            // Retorna a URL pública
-            return `${process.env.SPACES_ENDPOINT}/${BUCKET_NAME}/${path}`;
-        } catch (error) {
-            console.error('Error uploading to Spaces:', error);
-            throw error;
-        }
+        // URL válida por 15 minutos
+        const url = await getSignedUrl(s3Client, command, { expiresIn: 900 });
+
+        // Retorna a URL de upload e a URL pública final
+        const publicUrl = `${process.env.SPACES_ENDPOINT}/${BUCKET}/${key}`.replace(`${BUCKET}.${process.env.SPACES_REGION}.`, `${BUCKET}.`);
+
+        // Ajuste fino para URL da DigitalOcean (as vezes o endpoint varia)
+        // O padrão costuma ser https://BUCKET.REGION.digitaloceanspaces.com/KEY
+        const finalPublicUrl = `https://${BUCKET}.${process.env.SPACES_REGION}.digitaloceanspaces.com/${key}`;
+
+        return { uploadUrl: url, key, publicUrl: finalPublicUrl };
     },
 
     /**
-     * Gera URL assinada para upload direto do frontend (mais seguro/performático)
+     * Gera uma URL pré-assinada para DOWNLOAD (caso o arquivo seja privado)
      */
-    async getPresignedUploadUrl(path: string, contentType: string) {
-        const command = new PutObjectCommand({
-            Bucket: BUCKET_NAME,
-            Key: path,
-            ContentType: contentType,
-            ACL: 'public-read',
+    async getDownloadUrl(key: string) {
+        const command = new GetObjectCommand({
+            Bucket: BUCKET,
+            Key: key,
         });
-
-        try {
-            const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
-            return url;
-        } catch (error) {
-            console.error('Error getting presigned URL:', error);
-            throw error;
-        }
-    },
-
-    /**
-     * Retorna a URL pública de um arquivo
-     */
-    getPublicUrl(path: string) {
-        // Se a URL já for completa, retorna ela
-        if (path.startsWith('http')) return path;
-
-        // Remove burning slashes if present
-        const cleanPath = path.startsWith('/') ? path.slice(1) : path;
-        return `https://${BUCKET_NAME}.${process.env.SPACES_REGION}.digitaloceanspaces.com/${cleanPath}`;
+        return await getSignedUrl(s3Client, command, { expiresIn: 3600 });
     }
 };
