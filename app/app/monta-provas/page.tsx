@@ -33,7 +33,7 @@ const QUESTOES_OPTIONS = [15, 30, 60, 90, 120];
 
 export default function MontaProvasPage() {
     const router = useRouter();
-    const { firstName } = useUser();
+    const { firstName, user } = useUser();
     const [step, setStep] = useState<Step>('welcome');
     const [loadingFilters, setLoadingFilters] = useState(true);
 
@@ -182,6 +182,11 @@ export default function MontaProvasPage() {
     };
 
     const handleStartProva = async () => {
+        if (!user) {
+            addMessage('agent', '❌ Erro: Usuário não identificado. Tente recarregar a página.');
+            return;
+        }
+
         try {
             addMessage('agent', '🔍 Buscando questões no banco vetorial...');
 
@@ -215,7 +220,7 @@ export default function MontaProvasPage() {
                 difficulty: config.difficulty,
             };
 
-            const attempt = await createAttempt(attemptConfig, '00000000-0000-0000-0000-000000000001');
+            const attempt = await createAttempt(attemptConfig, user.id);
             router.push(`/app/quiz/${attempt.id}`);
         } catch (error) {
             console.error('Error creating attempt:', error);
