@@ -102,3 +102,20 @@ export async function generateWeeklySchedule(userId: string) {
         return { success: false, error: error.message };
     }
 }
+
+export async function getDailyPlan(userId: string) {
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        const { rows } = await query(`
+            SELECT * FROM study_events 
+            WHERE user_id = $1 
+            AND date = $2
+            ORDER BY start_time ASC
+        `, [userId, today]);
+
+        return rows;
+    } catch (error: any) {
+        console.error('Error fetching daily plan:', error);
+        return [];
+    }
+}

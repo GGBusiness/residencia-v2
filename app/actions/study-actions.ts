@@ -2,7 +2,7 @@
 
 import { db, query } from '@/lib/db';
 import { getUserStats as getUserStatsService } from '@/lib/stats-service';
-import { plannerService } from '@/lib/planner-service';
+import { getDailyPlan } from '@/lib/planner-service';
 
 export async function getDashboardDataAction(userId: string) {
     try {
@@ -10,7 +10,7 @@ export async function getDashboardDataAction(userId: string) {
         const stats = await getUserStatsService(userId);
 
         // 2. Daily Plan
-        const dailyPlan = await plannerService.getDailyPlan(userId);
+        const dailyPlan = await getDailyPlan(userId);
 
         // 3. Weekly Events
         const today = new Date();
