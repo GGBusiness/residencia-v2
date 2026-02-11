@@ -29,9 +29,9 @@ const INITIAL_AREAS = [
     { id: 'Medicina Preventiva', label: 'Preventiva', icon: '🛡️' },
 ];
 
-// Validated lists from user preference
-const ALLOWED_PROGRAMS = ['ENARE', 'USP', 'UNICAMP', 'SUS-SP', 'PSU-MG', 'UFRJ', 'UNIFESP'];
-const ALLOWED_YEARS = [2026, 2025, 2024, 2023, 2022, 2021, 2020];
+// Validated lists from user preference (Now used as Fallback/Top List)
+const POPULAR_PROGRAMS = ['ENARE', 'USP', 'UNICAMP', 'SUS-SP', 'PSU-MG', 'UFRJ', 'UNIFESP'];
+const POPULAR_YEARS = [2026, 2025, 2024, 2023, 2022, 2021, 2020];
 
 const QUESTOES_OPTIONS = [15, 30, 60, 90, 120];
 
@@ -42,8 +42,8 @@ export default function MontaProvasPage() {
     const [loadingFilters, setLoadingFilters] = useState(true);
 
     // Dynamic Filters State (Initialized with safe defaults)
-    const [availablePrograms, setAvailablePrograms] = useState<string[]>(ALLOWED_PROGRAMS);
-    const [availableYears, setAvailableYears] = useState<number[]>(ALLOWED_YEARS);
+    const [availablePrograms, setAvailablePrograms] = useState<string[]>(POPULAR_PROGRAMS);
+    const [availableYears, setAvailableYears] = useState<number[]>(POPULAR_YEARS);
     const [availableAreas, setAvailableAreas] = useState<string[]>([
         'Cirurgia Geral', 'Clínica Médica', 'Ginecologia e Obstetrícia',
         'Pediatria', 'Medicina Preventiva', 'Medicina de Família e Comunidade'
@@ -77,9 +77,14 @@ export default function MontaProvasPage() {
             try {
                 const filters = await getAvailableFilters();
                 if (filters) {
-                    // Strict User Preference: Always show allowed list, regardless of DB state
-                    setAvailablePrograms(ALLOWED_PROGRAMS);
-                    setAvailableYears(ALLOWED_YEARS);
+                    // Dynamic: Use DB data if available, otherwise fallback to popular
+                    if (filters.institutions && filters.institutions.length > 0) {
+                        setAvailablePrograms(filters.institutions);
+                    }
+
+                    if (filters.years && filters.years.length > 0) {
+                        setAvailableYears(filters.years);
+                    }
 
                     // Areas can still be dynamic from DB
                     if (filters.areas && filters.areas.length > 0) {
@@ -88,9 +93,7 @@ export default function MontaProvasPage() {
                 }
             } catch (error) {
                 console.error('Failed to load filters', error);
-                // Fallback
-                setAvailablePrograms(ALLOWED_PROGRAMS);
-                setAvailableYears(ALLOWED_YEARS);
+                // Fallback already set in state init
             } finally {
                 setLoadingFilters(false);
             }

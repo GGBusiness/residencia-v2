@@ -65,18 +65,46 @@ export default function AppRootLayout({
                     })}
                 </nav>
 
-                <div className="p-6 border-t border-slate-100 bg-slate-50/50">
+                <div className="p-4 border-t border-slate-200 bg-slate-50">
                     <button
                         onClick={() => router.push('/app/perfil')}
-                        className="w-full flex items-center gap-3 p-3 rounded-xl bg-white border border-slate-200 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer text-left"
+                        className="w-full group relative overflow-hidden bg-white hover:bg-gradient-to-br hover:from-indigo-50 hover:to-white border border-slate-200 hover:border-indigo-300 rounded-2xl transition-all duration-300 shadow-sm hover:shadow-md text-left"
                     >
-                        <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold shrink-0">
-                            {user?.name ? user.name.substring(0, 2).toUpperCase() : 'DR'}
+                        {/* Decorative Top Bar */}
+                        <div className="h-1.5 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 bg-[length:200%_auto] animate-gradient"></div>
+
+                        <div className="p-4 flex items-center gap-3">
+                            <div className="relative">
+                                <div className="w-12 h-12 rounded-xl bg-slate-100 group-hover:bg-white border-2 border-white shadow-sm flex items-center justify-center text-indigo-700 font-bold shrink-0 overflow-hidden">
+                                    {user?.name ? (
+                                        <span className="text-lg">{user.name.substring(0, 2).toUpperCase()}</span>
+                                    ) : (
+                                        <span className="text-lg">DR</span>
+                                    )}
+                                </div>
+                                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 border-2 border-white rounded-full flex items-center justify-center">
+                                    <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                                </div>
+                            </div>
+
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 mb-0.5">
+                                    <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded-[4px] tracking-wider uppercase">
+                                        PRO
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 font-medium">MEDICAL ID</span>
+                                </div>
+                                <p className="text-sm font-bold text-slate-800 truncate leading-tight">
+                                    {user?.name || 'Doutor(a)'}
+                                </p>
+                                <p className="text-[11px] text-slate-500 truncate group-hover:text-indigo-600 transition-colors">
+                                    Configurações da Conta
+                                </p>
+                            </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-slate-900 truncate">{user?.name || 'Doutor(a)'}</p>
-                            <p className="text-xs text-slate-500 truncate">Configurações & Perfil</p>
-                        </div>
+
+                        {/* Holographic effect overlay on hover */}
+                        <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
                     </button>
                 </div>
             </aside>
