@@ -88,14 +88,16 @@ export default function PlannerPage() {
                 try {
                     const result = await generateScheduleAction(user.id);
                     if (result.success) {
-                        await loadEvents();
-                        showAlert('Sucesso!', `🎉 Cronograma criado com sucesso! ${result.count} sessões agendadas.`);
+                        showAlert('Sucesso!', 'Cronograma gerado com sucesso!');
+                        // Refresh
+                        window.location.reload();
                     } else {
-                        showAlert('Erro', 'Erro ao gerar cronograma. Tente novamente.');
+                        console.error('Schedule gen error:', result.error);
+                        showAlert('Erro', 'Erro ao gerar: ' + (result.error || 'Tente personalizar seu perfil antes.'));
                     }
                 } catch (error) {
-                    console.error(error);
-                    showAlert('Erro', 'Erro inesperado ao gerar cronograma.');
+                    console.error('Failed to generate', error);
+                    showAlert('Erro de Conexão', 'Verifique sua internet e tente novamente.');
                 } finally {
                     setGenerating(false);
                 }
