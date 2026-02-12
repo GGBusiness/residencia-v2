@@ -20,12 +20,13 @@ const s3Client = new S3Client({
         accessKeyId: process.env.SPACES_KEY!,
         secretAccessKey: process.env.SPACES_SECRET!,
     },
+    forcePathStyle: true // Important for DigitalOcean Spaces
 });
 
 const BUCKET = process.env.SPACES_BUCKET!;
 
 async function configureCors() {
-    console.log(`🔧 Configurando CORS para o bucket: ${BUCKET}...`);
+    console.log(`🔧 [ULTRA] Configurando CORS Permissivo para: ${BUCKET}...`);
     console.log(`📍 Endpoint: ${process.env.SPACES_ENDPOINT}`);
 
     try {
@@ -34,10 +35,10 @@ async function configureCors() {
             CORSConfiguration: {
                 CORSRules: [
                     {
-                        AllowedHeaders: ['*'],
+                        AllowedHeaders: ['*'], // Allow ALL headers (including x-amz-acl, content-type)
                         AllowedMethods: ['GET', 'PUT', 'HEAD', 'POST', 'DELETE'],
-                        AllowedOrigins: ['*'], // Permite tudo (Vercel, Localhost, etc)
-                        ExposeHeaders: ['ETag'],
+                        AllowedOrigins: ['*'], // Allow ALL origins
+                        ExposeHeaders: ['ETag', 'x-amz-request-id'],
                         MaxAgeSeconds: 3000
                     }
                 ]
@@ -45,14 +46,11 @@ async function configureCors() {
         });
 
         await s3Client.send(command);
-        console.log('✅ SUCESSO! Regras de CORS aplicadas.');
-        console.log('🌍 Agora seu site na Vercel deve conseguir fazer uploads.');
+        console.log('✅ SUCESSO! Regras de CORS (Modo Aberto) aplicadas.');
+        console.log('🌍 Tente refazer o upload no site.');
 
     } catch (error: any) {
         console.error('❌ Falha ao configurar CORS:', error.message);
-        if (error.message.includes('Access Denied')) {
-            console.error('💡 Dica: Verifique se suas chaves SPACES_KEY e SPACES_SECRET têm permissão de escrita.');
-        }
     }
 }
 

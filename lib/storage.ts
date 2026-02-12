@@ -14,6 +14,7 @@ const s3Client = new S3Client({
         accessKeyId: process.env.SPACES_KEY || '',
         secretAccessKey: process.env.SPACES_SECRET || '',
     },
+    forcePathStyle: true // Enforce "https://endpoint/bucket" (Fixes SSL/DNS issues)
 });
 
 const BUCKET = process.env.SPACES_BUCKET || 'residencia-files-prod';

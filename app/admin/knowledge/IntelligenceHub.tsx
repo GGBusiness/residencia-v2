@@ -30,6 +30,8 @@ export default function IntelligenceHub() {
             setProgress(Math.round(((currentFileNum - 1) / totalFiles) * 100));
             setStatus({ type: 'info', msg: `[${currentFileNum}/${totalFiles}] Enviando: ${file.name}...` });
 
+            let uploadUrl = '';
+
             try {
                 // 1. Get Presigned URL
                 const presignedResult = await getPresignedUrlAction(file.name, file.type);
@@ -38,7 +40,8 @@ export default function IntelligenceHub() {
                     throw new Error(presignedResult.error || 'Falha ao gerar URL.');
                 }
 
-                const { uploadUrl, key, publicUrl } = presignedResult.data;
+                uploadUrl = presignedResult.data.uploadUrl;
+                const { key, publicUrl } = presignedResult.data;
 
                 // 2. Upload to S3 (Directly)
                 const uploadRes = await fetch(uploadUrl, {
@@ -67,7 +70,7 @@ export default function IntelligenceHub() {
                 console.error(`Erro no arquivo ${file.name}:`, error);
                 // Extract useful error info
                 const errorMsg = error.message.includes('Failed to fetch')
-                    ? 'Bloqueio de Rede/CORS ou URL inválida.'
+                    ? `Bloqueio de Rede/CORS. URL: ${uploadUrl?.slice(0, 100)}...`
                     : error.message;
 
                 setLogs(prev => [...prev, `❌ Erro (${file.name}): ${errorMsg}`]);
