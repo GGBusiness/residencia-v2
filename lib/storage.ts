@@ -33,7 +33,7 @@ export const storageService = {
             Bucket: BUCKET,
             Key: key,
             ContentType: contentType,
-            ACL: 'public-read', // Arquivos públicos para facilitar acesso (ajuste se necessário)
+            // ACL removida para evitar erro de CORS/Header Mismatch (Default = Private)
         });
 
         // URL válida por 15 minutos
