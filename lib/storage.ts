@@ -25,7 +25,10 @@ export const storageService = {
      * @param contentType Tipo MIME (ex: 'application/pdf')
      */
     async getUploadUrl(fileName: string, contentType: string) {
-        const key = `knowledge-base/${Date.now()}-${fileName}`;
+        // Sanitize filename to avoid S3 Signature mismatches (Accents, Spaces, Special Chars)
+        const sanitizedParams = sanitizeFileName(fileName);
+        const key = `knowledge-base/${Date.now()}-${sanitizedParams}`;
+
         const command = new PutObjectCommand({
             Bucket: BUCKET,
             Key: key,
@@ -57,3 +60,12 @@ export const storageService = {
         return await getSignedUrl(s3Client, command, { expiresIn: 3600 });
     }
 };
+
+function sanitizeFileName(fileName: string): string {
+    return fileName
+        .normalize('NFD') // Decompose accents
+        .replace(/[\u0300-\u036f]/g, '') // Remove accents
+        .toLowerCase()
+        .replace(/[^a-z0-9.]/g, '-') // Replace non-alphanumeric with hyphen
+        .replace(/-+/g, '-'); // Remove duplicate hyphens
+}
