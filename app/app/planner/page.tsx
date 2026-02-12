@@ -78,7 +78,10 @@ export default function PlannerPage() {
     };
 
     const handleGenerateSchedule = () => {
-        if (!user?.id) return;
+        if (!user?.id) {
+            showAlert('Erro', 'Usuário não identificado. Tente recarregar a página.');
+            return;
+        }
 
         showConfirm(
             'Gerar Cronograma IA',
@@ -86,18 +89,20 @@ export default function PlannerPage() {
             async () => {
                 setGenerating(true);
                 try {
+                    console.log('Calling generateScheduleAction for:', user.id);
                     const result = await generateScheduleAction(user.id);
+                    console.log('Generate result:', result);
+
                     if (result.success) {
                         showAlert('Sucesso!', 'Cronograma gerado com sucesso!');
-                        // Refresh
-                        window.location.reload();
+                        setTimeout(() => window.location.reload(), 1500);
                     } else {
                         console.error('Schedule gen error:', result.error);
-                        showAlert('Erro', 'Erro ao gerar: ' + (result.error || 'Tente personalizar seu perfil antes.'));
+                        showAlert('Erro', `Falha ao gerar: ${result.error || 'Erro desconhecido'}`);
                     }
-                } catch (error) {
+                } catch (error: any) {
                     console.error('Failed to generate', error);
-                    showAlert('Erro de Conexão', 'Verifique sua internet e tente novamente.');
+                    showAlert('Erro de Conexão', `Detalhe: ${error.message}`);
                 } finally {
                     setGenerating(false);
                 }

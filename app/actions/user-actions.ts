@@ -5,7 +5,7 @@ import { getUserStats as getUserStatsService } from '@/lib/stats-service';
 
 export async function completeOnboardingAction(userId: string, data: OnboardingData) {
     try {
-        console.log(`[Action] Starting onboarding for user ${userId}`);
+        console.log(`[Action] Starting onboarding for user ${userId}`, data);
         const result = await userService.completeOnboarding(userId, data);
         console.log(`[Action] Onboarding result:`, result);
         return result;
@@ -70,6 +70,7 @@ export async function updateUserDataAction(userId: string, data: { name?: string
 
 export async function syncUserAction(userId: string, email: string, name: string) {
     try {
+        console.log(`[Action] Syncing user: ${userId}, ${email}, ${name}`);
         const user = await userService.syncUser(userId, email, name);
         return { success: true, data: user };
     } catch (error) {

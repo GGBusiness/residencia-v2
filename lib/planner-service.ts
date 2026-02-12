@@ -12,40 +12,52 @@ const TIME_RANGES = {
 
 export async function generateWeeklySchedule(userId: string) {
     try {
-        console.log('📅 Generating Smart Schedule for:', userId);
+        console.log('📅 [Planner Service] Generating schedule for:', userId);
 
         // 1. Get User Profile & Goals
         const { rows: profiles } = await query('SELECT * FROM user_profiles WHERE user_id = $1', [userId]);
-        if (profiles.length === 0) throw new Error('Perfil não encontrado');
-        const profile = profiles[0];
+
+        let profile = profiles[0];
+        if (!profile) {
+            console.warn('⚠️ [Planner Service] Profile not found. Creating default profile...');
+            // Create a default profile to avoid crashing
+            profile = {
+                user_id: userId,
+                target_institution: 'ENARE',
+                target_specialty: 'Clínica Médica',
+                weekly_hours: 20,
+                best_study_time: 'noite'
+            };
+        } else {
+            console.log('👤 [Planner Service] Profile found:', profile.target_institution, profile.target_specialty);
+        }
 
         const { rows: goals } = await query('SELECT * FROM user_goals WHERE user_id = $1', [userId]);
         const goal = goals[0] || { weekly_hours_goal: 20 };
+        console.log('🎯 [Planner Service] Goal hours:', goal.weekly_hours_goal);
 
-        // 2. Clear existing future events (optional, maybe keep manual ones?)
-        // For now, let's just append.
+        // 2. Clear existing future events
+        // (Optional: for now we append, but usually we should clear future uncompleted events)
 
         // 3. Calculate sessions
-        const weeklyHours = goal.weekly_hours_goal;
-        const daysPerWeek = 5; // Study days
-        const hoursPerDay = weeklyHours / daysPerWeek;
-        const sessionsPerDay = Math.ceil(hoursPerDay);
-
+        const weeklyHours = goal.weekly_hours_goal || 20;
         const bestTime = TIME_RANGES[profile.best_study_time as keyof typeof TIME_RANGES] || TIME_RANGES['noite'];
 
-        // Rotatividade de Matérias (Mockada por enquanto)
+        // Rotatividade de Matérias
         const rotation = [
             profile.target_specialty || 'Clínica Médica',
             'Cirurgia Geral',
             'Pediatria',
             'Ginecologia e Obstetrícia',
             'Medicina Preventiva',
-            'Cirurgia Geral', // Heavy rotation
-            'Clínica Médica'  // Heavy rotation
+            'Cirurgia Geral',
+            'Clínica Médica'
         ];
 
         let eventsToInsert = [];
         let today = new Date();
+
+        console.log('🗓️ [Planner Service] Calculating events for next 4 weeks...');
 
         // Generate for next 4 weeks
         for (let week = 0; week < 4; week++) {
@@ -53,15 +65,16 @@ export async function generateWeeklySchedule(userId: string) {
                 let currentDay = new Date(today);
                 currentDay.setDate(today.getDate() + (week * 7) + day);
 
-                // Skip weekends (optional logic, let's keep it simple: Monday-Friday)
                 const dayOfWeek = currentDay.getDay(); // 0 = Sun, 6 = Sat
+
+                // Skip weekends for study (Saturday is Review)
                 if (dayOfWeek === 0 || dayOfWeek === 6) {
-                    // Weekend Review?
                     if (dayOfWeek === 6) {
                         eventsToInsert.push({
                             user_id: userId,
                             title: 'Revisão Semanal',
                             event_type: 'review',
+                            area: 'Geral', // Ensure area is not null
                             date: currentDay.toISOString().split('T')[0],
                             start_time: '10:00',
                             end_time: '12:00',
@@ -87,18 +100,27 @@ export async function generateWeeklySchedule(userId: string) {
             }
         }
 
+        console.log(`💾 [Planner Service] Inserting ${eventsToInsert.length} events...`);
+
         // 4. Batch Insert
+        let insertedCount = 0;
         for (const event of eventsToInsert) {
-            await query(`
-                INSERT INTO study_events (user_id, title, event_type, area, date, start_time, end_time, completed)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            `, [event.user_id, event.title, event.event_type, event.area, event.date, event.start_time, event.end_time, event.completed]);
+            try {
+                await query(`
+                    INSERT INTO study_events (user_id, title, event_type, area, date, start_time, end_time, completed)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                `, [event.user_id, event.title, event.event_type, event.area, event.date, event.start_time, event.end_time, event.completed]);
+                insertedCount++;
+            } catch (err) {
+                console.error(`❌ [Planner Service] Failed to insert event ${event.title}:`, err);
+            }
         }
 
-        return { success: true, count: eventsToInsert.length };
+        console.log(`✅ [Planner Service] Successfully inserted ${insertedCount} events.`);
+        return { success: true, count: insertedCount };
 
     } catch (error: any) {
-        console.error('Error generating schedule:', error);
+        console.error('❌ [Planner Service] Critical Error:', error);
         return { success: false, error: error.message };
     }
 }
