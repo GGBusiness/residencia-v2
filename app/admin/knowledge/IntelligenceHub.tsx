@@ -44,10 +44,11 @@ export default function IntelligenceHub() {
                 const { key, publicUrl } = presignedResult.data;
 
                 // 2. Upload to S3 (Directly)
-                // Removemos Content-Type dos headers para evitar Preflight complexo
+                // RESTORED: Explicit header to match the signature and override browser defaults
                 const uploadRes = await fetch(uploadUrl, {
                     method: 'PUT',
-                    body: file
+                    body: file,
+                    headers: { 'Content-Type': file.type || 'application/octet-stream' }
                 });
 
                 if (!uploadRes.ok) throw new Error('Falha no upload para o Storage.');

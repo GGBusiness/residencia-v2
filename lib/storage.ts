@@ -33,8 +33,8 @@ export const storageService = {
         const command = new PutObjectCommand({
             Bucket: BUCKET,
             Key: key,
-            // ContentType removido para flexibilidade total
-            // ACL removida
+            ContentType: contentType, // RESTORED: Explicitly sign the type the browser will send
+            // ACL removed (Private)
         });
 
         // URL válida por 15 minutos
