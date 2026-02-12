@@ -64,8 +64,13 @@ export default function IntelligenceHub() {
                 successCount++;
 
             } catch (error: any) {
-                console.error(error);
-                setLogs(prev => [...prev, `❌ Erro em ${file.name}: ${error.message}`]);
+                console.error(`Erro no arquivo ${file.name}:`, error);
+                // Extract useful error info
+                const errorMsg = error.message.includes('Failed to fetch')
+                    ? 'Bloqueio de Rede/CORS ou URL inválida.'
+                    : error.message;
+
+                setLogs(prev => [...prev, `❌ Erro (${file.name}): ${errorMsg}`]);
                 failCount++;
             }
         }
