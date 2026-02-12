@@ -32,9 +32,12 @@ export default function IntelligenceHub() {
 
             let uploadUrl = '';
 
+            // Force consistent Content-Type (Fixes empty types on Windows)
+            const contentType = file.type || 'application/octet-stream';
+
             try {
                 // 1. Get Presigned URL
-                const presignedResult = await getPresignedUrlAction(file.name, file.type);
+                const presignedResult = await getPresignedUrlAction(file.name, contentType);
 
                 if (!presignedResult.success || !presignedResult.data) {
                     throw new Error(presignedResult.error || 'Falha ao gerar URL.');
@@ -48,7 +51,7 @@ export default function IntelligenceHub() {
                 const uploadRes = await fetch(uploadUrl, {
                     method: 'PUT',
                     body: file,
-                    headers: { 'Content-Type': file.type || 'application/octet-stream' }
+                    headers: { 'Content-Type': contentType }
                 });
 
                 if (!uploadRes.ok) throw new Error('Falha no upload para o Storage.');
