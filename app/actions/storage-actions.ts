@@ -15,6 +15,15 @@ export async function getPresignedUrlAction(fileName: string, contentType: strin
         return { success: false, error: 'Unauthorized' };
     }
 
+    // Validação de Debug para o Usuário
+    if (!process.env.SPACES_KEY || !process.env.SPACES_SECRET) {
+        console.error("❌ ERRO CRÍTICO: Variáveis SPACES_KEY/SECRET não encontradas no ambiente do servidor.");
+        return {
+            success: false,
+            error: 'MISSING_ENV: As chaves da DigitalOcean não estão configuradas na Vercel (Environment Variables).'
+        };
+    }
+
     try {
         const result = await storageService.getUploadUrl(fileName, contentType);
         return { success: true, data: result };
