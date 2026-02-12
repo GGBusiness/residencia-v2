@@ -35,10 +35,10 @@ async function configureCors() {
             CORSConfiguration: {
                 CORSRules: [
                     {
-                        AllowedHeaders: ['*'], // Allow ALL headers (including x-amz-acl, content-type)
-                        AllowedMethods: ['GET', 'PUT', 'HEAD', 'POST', 'DELETE'],
-                        AllowedOrigins: ['*'], // Allow ALL origins
-                        ExposeHeaders: ['ETag', 'x-amz-request-id'],
+                        AllowedHeaders: ['*'],
+                        AllowedMethods: ['GET', 'PUT', 'POST', 'HEAD', 'DELETE'],
+                        AllowedOrigins: ['*'],
+                        ExposeHeaders: ['ETag'],
                         MaxAgeSeconds: 3000
                     }
                 ]
