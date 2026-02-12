@@ -20,13 +20,14 @@ const s3Client = new S3Client({
         accessKeyId: process.env.SPACES_KEY!,
         secretAccessKey: process.env.SPACES_SECRET!,
     },
-    forcePathStyle: true // Important for DigitalOcean Spaces
+    // FALSE forces Virtual-Hosted Style (bucket.endpoint), required for CORS/SSL
+    forcePathStyle: false
 });
 
 const BUCKET = process.env.SPACES_BUCKET!;
 
 async function configureCors() {
-    console.log(`🔧 [ULTRA] Configurando CORS Permissivo para: ${BUCKET}...`);
+    console.log(`🔧 [VIRTUAL-HOST] Configurando CORS Permissivo para: ${BUCKET}...`);
     console.log(`📍 Endpoint: ${process.env.SPACES_ENDPOINT}`);
 
     try {
@@ -46,7 +47,7 @@ async function configureCors() {
         });
 
         await s3Client.send(command);
-        console.log('✅ SUCESSO! Regras de CORS (Modo Aberto) aplicadas.');
+        console.log('✅ SUCESSO! Regras de CORS (Virtual Host) aplicadas.');
         console.log('🌍 Tente refazer o upload no site.');
 
     } catch (error: any) {

@@ -14,7 +14,7 @@ const s3Client = new S3Client({
         accessKeyId: process.env.SPACES_KEY || '',
         secretAccessKey: process.env.SPACES_SECRET || '',
     },
-    forcePathStyle: true // Enforce "https://endpoint/bucket" (Fixes SSL/DNS issues)
+    forcePathStyle: false // FALSE forces Virtual-Hosted Style (bucket.endpoint), required for CORS/SSL
 });
 
 const BUCKET = process.env.SPACES_BUCKET || 'residencia-files-prod';
@@ -33,8 +33,8 @@ export const storageService = {
         const command = new PutObjectCommand({
             Bucket: BUCKET,
             Key: key,
-            ContentType: contentType,
-            // ACL removida para evitar erro de CORS/Header Mismatch (Default = Private)
+            // ContentType removido para flexibilidade total
+            // ACL removida
         });
 
         // URL válida por 15 minutos
