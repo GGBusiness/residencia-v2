@@ -73,6 +73,7 @@ export async function syncUserAction(userId: string, email: string, name: string
         const user = await userService.syncUser(userId, email, name);
         return { success: true, data: user };
     } catch (error) {
+        console.error('Error syncing user:', error);
         return { success: false, error: 'Failed to sync user' };
     }
 }

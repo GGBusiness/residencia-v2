@@ -3,22 +3,9 @@
 import { storageService } from '@/lib/storage';
 import { aiService } from '@/lib/ai-service';
 import { createServerClient } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import AdmZip from 'adm-zip';
-
-// Helper to ensure PDF-Parse loads correctly
-async function loadPdfParse() {
-    const pdfParseModule: any = await import('pdf-parse');
-    let pdfParse = pdfParseModule.default || pdfParseModule;
-    if (typeof pdfParse !== 'function') {
-        for (const key of Object.keys(pdfParseModule)) {
-            if (typeof pdfParseModule[key] === 'function') {
-                pdfParse = pdfParseModule[key];
-                break;
-            }
-        }
-    }
-    return pdfParse;
-}
+import pdfParse from 'pdf-parse';
 
 export async function ingestUnifiedAction(params: { fileKey: string; fileName: string; publicUrl: string }) {
     console.log(`🚀 Ingestão Unificada Iniciada: ${params.fileName}`);
@@ -65,56 +52,117 @@ export async function ingestUnifiedAction(params: { fileKey: string; fileName: s
         }
 
         // 3. Processar cada arquivo (Loop)
-        const pdfParse = await loadPdfParse();
-        const supabase = createServerClient();
+        // DEBUG: Verificar se as chaves estão carregadas
+        if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+            console.error('❌ ERRO CRÍTICO: SUPABASE_SERVICE_ROLE_KEY não encontrada!');
+            throw new Error('Configuração de Banco de Dados incompleta (Falta Service Key).');
+        }
+        console.log(`🔑 Service Key Loaded (${process.env.SUPABASE_SERVICE_ROLE_KEY.length} chars)`);
+
+        const adminSupabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!,
+            {
+                auth: {
+                    persistSession: false,
+                    autoRefreshToken: false,
+                    detectSessionInUrl: false
+                },
+                global: {
+                    headers: { 'x-my-custom-header': 'admin-ingest' } // Debug helper
+                }
+            }
+        );
 
         for (const file of filesToProcess) {
             try {
                 console.log(`Processing file: ${file.name}`);
 
-                // A. Extrair Texto
-                const pdfData = await pdfParse(file.buffer);
-                const textContent = pdfData.text;
-
-                if (!textContent || textContent.length < 50) {
-                    results.errors.push(`${file.name}: Texto insuficiente.`);
+                // A. Extrair Texto com PDF-Parse (Estável)
+                let textContent = '';
+                try {
+                    const pdfData = await pdfParse(file.buffer);
+                    textContent = pdfData.text;
+                } catch (parseErr: any) {
+                    results.errors.push(`${file.name}: Falha na leitura do PDF - ${parseErr.message}`);
                     continue;
                 }
 
+                // Limpeza básica
+                textContent = textContent.replace(/\s+/g, ' ').trim();
+
+                // CHECK: Se for vazio, é scan
+                if (!textContent || textContent.length < 50) {
+                    const msg = `⚠️ ${file.name}: ARQUIVO É UMA IMAGEM/XEROX. O sistema só lê PDFs com texto selecionável.`;
+                    console.warn(msg);
+                    results.errors.push(msg); // Adiciona ao log visível do usuário
+                    continue; // Pula este arquivo
+                }
+
                 // --- FLOW 1: RAG (KNOWLEDGE BASE) ---
-                // Salvar documento no banco
-                const { data: docData, error: docError } = await supabase
+
+                // 1.1 Deduplicação de Documento
+                // Verifica se já existe documento com este nome exato
+                const { data: existingDoc } = await adminSupabase
                     .from('documents')
-                    .insert({
-                        title: file.name,
-                        doc_type: 'hybrid_ingest',
-                        file_path: params.publicUrl, // Nota: Se for ZIP, todos apontam pro ZIP original por enquanto
-                        metadata: { source_zip: params.fileName, internal_path: file.name },
-                        year: new Date().getFullYear()
-                    })
-                    .select()
+                    .select('id')
+                    .eq('title', file.name)
                     .single();
 
-                if (!docError && docData) {
+                let docId = existingDoc?.id;
+
+                if (!docId) {
+                    // Inserir novo
+                    const { data: docData, error: docError } = await adminSupabase
+                        .from('documents')
+                        .insert({
+                            title: file.name,
+                            doc_type: 'hybrid_ingest',
+                            file_path: params.publicUrl,
+                            metadata: { source_zip: params.fileName, internal_path: file.name },
+                            year: new Date().getFullYear()
+                        })
+                        .select()
+                        .single();
+
+                    if (docError) {
+                        console.error('Erro inserindo doc:', docError);
+                        throw new Error(`Erro ao salvar documento: ${docError.message}`);
+                    }
+                    docId = docData.id;
+                } else {
+                    console.log(`📄 Documento já existe (ID: ${docId}). Pulando criação...`);
+                    // Opcional: Limpar embeddings antigos se for re-ingestão?
+                    // await adminSupabase.from('document_embeddings').delete().eq('document_id', docId);
+                }
+
+                if (docId) {
                     const chunks = aiService.chunkText(textContent, 1000);
                     results.ragChunks += chunks.length;
 
                     // Salvar Embeddings (Batch Limitado)
                     const embeddingsToInsert = [];
                     for (const chunk of chunks) {
-                        const embedding = await aiService.generateEmbedding(chunk);
-                        embeddingsToInsert.push({
-                            document_id: docData.id,
-                            content: chunk,
-                            embedding,
-                            metadata: { filename: file.name }
-                        });
+                        try {
+                            const embedding = await aiService.generateEmbedding(chunk);
+                            embeddingsToInsert.push({
+                                document_id: docId,
+                                content: chunk,
+                                embedding,
+                                metadata: { filename: file.name }
+                            });
+                        } catch (embErr) {
+                            console.error('Erro gerando embedding:', embErr);
+                        }
                     }
 
                     // Insert in batches of 50
                     for (let i = 0; i < embeddingsToInsert.length; i += 50) {
                         const batch = embeddingsToInsert.slice(i, i + 50);
-                        await supabase.from('document_embeddings').insert(batch);
+                        if (batch.length > 0) {
+                            const { error: embInsertError } = await adminSupabase.from('document_embeddings').insert(batch);
+                            if (embInsertError) console.error('Erro salvando embeddings:', embInsertError);
+                        }
                     }
                 }
 
@@ -154,27 +202,40 @@ export async function ingestUnifiedAction(params: { fileKey: string; fileName: s
                 else if (parsed.questions && Array.isArray(parsed.questions)) questions = parsed.questions;
 
                 if (questions.length > 0) {
-                    const questionsToSave = questions.map((q: any) => ({
-                        institution: file.name.includes('ENARE') ? 'ENARE' : 'App-Generated',
-                        year: new Date().getFullYear(),
-                        area: q.area || 'Geral',
-                        question_text: q.question_text,
-                        option_a: q.option_a || q.options?.a,
-                        option_b: q.option_b || q.options?.b,
-                        option_c: q.option_c || q.options?.c,
-                        option_d: q.option_d || q.options?.d,
-                        option_e: q.option_e || q.options?.e || null,
-                        correct_answer: q.correct_answer || 'A',
-                        explanation: q.explanation || 'Gerado via IA',
-                        created_at: new Date().toISOString()
-                    }));
+                    let savedCount = 0;
+                    for (const q of questions) {
+                        // Deduplicação de Questão
+                        // Verifica se texto da questão já existe
+                        const { data: existingQ } = await adminSupabase
+                            .from('questions')
+                            .select('id')
+                            .eq('question_text', q.question_text)
+                            .single();
 
-                    const { error: qError } = await supabase.from('questions').insert(questionsToSave);
-                    if (!qError) {
-                        results.questionsGenerated += questions.length;
-                    } else {
-                        results.errors.push(`${file.name}: Erro ao salvar questões - ${qError.message}`);
+                        if (existingQ) {
+                            console.log('Questão duplicada pulada.');
+                            continue;
+                        }
+
+                        const { error: qError } = await adminSupabase.from('questions').insert({
+                            institution: file.name.includes('ENARE') ? 'ENARE' : 'App-Generated',
+                            year: new Date().getFullYear(),
+                            area: q.area || 'Geral',
+                            question_text: q.question_text,
+                            option_a: q.option_a || q.options?.a,
+                            option_b: q.option_b || q.options?.b,
+                            option_c: q.option_c || q.options?.c,
+                            option_d: q.option_d || q.options?.d,
+                            option_e: q.option_e || q.options?.e || null,
+                            correct_answer: (q.correct_answer || 'A').toString().toUpperCase().replace(/[^A-E]/g, '') || 'A',
+                            explanation: q.explanation || 'Gerado via IA',
+                            created_at: new Date().toISOString()
+                        });
+
+                        if (!qError) savedCount++;
+                        else results.errors.push(`${file.name}: Erro ao salvar questão - ${qError.message}`);
                     }
+                    results.questionsGenerated += savedCount;
                 }
 
                 results.processedFiles++;

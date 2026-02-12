@@ -64,10 +64,15 @@ export default function IntelligenceHub() {
                 if (!ingestResult.success) throw new Error(ingestResult.error);
 
                 // Log outcome per file
-                setLogs(prev => [
-                    ...prev,
-                    `✅ [${file.name}]: ${ingestResult.results?.questionsGenerated || 0} questões, ${ingestResult.results?.ragChunks || 0} memórias.`
-                ]);
+                const successMsg = `✅ [${file.name}]: ${ingestResult.results?.questionsGenerated || 0} questões, ${ingestResult.results?.ragChunks || 0} memórias.`;
+                setLogs(prev => [...prev, successMsg]);
+
+                // Show detailed warnings/errors from the ingestion process
+                if (ingestResult.results?.errors && ingestResult.results.errors.length > 0) {
+                    ingestResult.results.errors.forEach((err: string) => {
+                        setLogs(prev => [...prev, `⚠️ ${err}`]);
+                    });
+                }
                 successCount++;
 
             } catch (error: any) {

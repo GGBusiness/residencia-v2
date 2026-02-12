@@ -6,16 +6,23 @@ import { supabase } from '@/lib/supabase';
 import { Card, CardBody } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { type OnboardingData } from '@/lib/user-service';
-import { completeOnboardingAction } from '@/app/actions/user-actions';
-import { ArrowRight, ArrowLeft, CheckCircle2, Sparkles, Clock } from 'lucide-react';
+import { completeOnboardingAction, syncUserAction } from '@/app/actions/user-actions';
+import { generateScheduleAction } from '@/app/actions/planner-actions'; // Import Planner Generator
+import { ArrowRight, ArrowLeft, CheckCircle2, Sparkles, Clock, Calendar } from 'lucide-react';
 
-
-type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+// Steps re-mapped: 
+// 1 = Institution (was 3)
+// 2 = Specialty (was 4)
+// 3 = Availability (was 5)
+// 4 = Best Time (was 6)
+// 5 = Base (was 7)
+type Step = 1 | 2 | 3 | 4 | 5;
 
 export default function OnboardingPage() {
     const router = useRouter();
     const [currentStep, setCurrentStep] = useState<Step>(1);
     const [loading, setLoading] = useState(false);
+    const [userName, setUserName] = useState(''); // To store display name
 
     const [formData, setFormData] = useState<OnboardingData>({
         name: '',
@@ -30,32 +37,14 @@ export default function OnboardingPage() {
     });
 
     const institutions = [
-        'ENARE',
-        'ENAMED',
-        'USP',
-        'UNICAMP',
-        'UNIFESP',
-        'SUS-SP',
-        'SUS-RJ',
-        'INCA',
-        'Todos',
+        'ENARE', 'ENAMED', 'USP', 'UNICAMP', 'UNIFESP',
+        'SUS-SP', 'SUS-RJ', 'INCA', 'Todos',
     ];
 
     const specialties = [
-        'Cirurgia Geral',
-        'Clínica Médica',
-        'Ginecologia e Obstetrícia',
-        'Pediatria',
-        'Medicina Preventiva e Social',
-        'Ortopedia',
-        'Anestesiologia',
-        'Radiologia',
-        'Cardiologia',
-        'Neurologia',
-        'Psiquiatria',
-        'Dermatologia',
-        'Oftalmologia',
-        'Todos',
+        'Cirurgia Geral', 'Clínica Médica', 'Ginecologia e Obstetrícia', 'Pediatria',
+        'Medicina Preventiva e Social', 'Ortopedia', 'Anestesiologia', 'Radiologia',
+        'Cardiologia', 'Neurologia', 'Psiquiatria', 'Dermatologia', 'Oftalmologia', 'Todos',
     ];
 
     const timeframes = [
@@ -74,7 +63,7 @@ export default function OnboardingPage() {
 
     const [userId, setUserId] = useState<string | null>(null);
 
-    // Verificar autenticação ao carregar
+    // Verificar autenticação e carregar dados do usuário
     useEffect(() => {
         const checkAuth = async () => {
             const { data: { user } } = await supabase.auth.getUser();
@@ -83,6 +72,18 @@ export default function OnboardingPage() {
                 return;
             }
             setUserId(user.id);
+
+            // Auto-fill Name and Email from Auth
+            const name = user.user_metadata?.full_name || user.user_metadata?.name || '';
+            const email = user.email || '';
+
+            setUserName(name.split(' ')[0] || 'Doutor(a)'); // First name for greeting
+
+            setFormData(prev => ({
+                ...prev,
+                name: name,
+                email: email
+            }));
         };
         checkAuth();
     }, [router]);
@@ -97,7 +98,7 @@ export default function OnboardingPage() {
     }, [dailyHours, studyDays]);
 
     const handleNext = () => {
-        if (currentStep < 7) {
+        if (currentStep < 5) {
             setCurrentStep((currentStep + 1) as Step);
         }
     };
@@ -107,10 +108,6 @@ export default function OnboardingPage() {
             setCurrentStep((currentStep - 1) as Step);
         }
     };
-
-
-
-    // ... inside component
 
     const handleComplete = async () => {
         if (!userId) {
@@ -122,14 +119,18 @@ export default function OnboardingPage() {
         setLoading(true);
         try {
             console.log('=== INICIANDO ONBOARDING (Server Action) ===');
-            console.log('UserID:', userId);
 
-            // Server Action call
+            // 1. Sync User Data (Ensure Name/Email is fresh in DB)
+            await syncUserAction(userId, formData.email, formData.name);
+
+            // 2. Save Onboarding Profile
             const result = await completeOnboardingAction(userId, formData);
 
-            console.log('Resultado completeOnboarding:', result);
-
             if (result.success) {
+                // 3. GENERATE AI PLANNER IMMEDIATELY
+                console.log('🚀 Gerando Planner Inteligente...');
+                await generateScheduleAction(userId);
+
                 // Redirecionar para dashboard
                 router.push('/app');
             } else {
@@ -146,47 +147,43 @@ export default function OnboardingPage() {
 
     const isStepValid = () => {
         switch (currentStep) {
-            case 1:
-                return formData.name.trim().length > 2;
-            case 2:
-                return formData.email.includes('@');
-            case 3:
+            case 1: // Institution
                 return formData.target_institution !== '';
-            case 4:
+            case 2: // Specialty
                 return formData.target_specialty !== '';
-            case 5:
+            case 3: // Availability
                 return formData.weekly_hours > 0;
-            case 6: // Best Study Time
+            case 4: // Best Time
                 return true;
-            case 7: // Theoretical Base
+            case 5: // Base
                 return true;
             default:
                 return false;
         }
     };
 
-    const progress = (currentStep / 7) * 100;
+    const progress = (currentStep / 5) * 100;
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-primary-50 via-purple-50 to-pink-50 flex items-center justify-center p-4">
             <div className="max-w-2xl w-full">
                 {/* Header */}
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-full mb-4">
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-full mb-4 shadow-lg animate-pulse">
                         <Sparkles className="w-8 h-8 text-white" />
                     </div>
                     <h1 className="text-4xl font-bold text-gray-900 mb-2">
-                        Bem-vindo! 🎉
+                        Bem-vindo(a), {userName}! 🎉
                     </h1>
                     <p className="text-lg text-gray-600">
-                        Vamos personalizar sua jornada de estudos
+                        Já te conhecemos! Agora vamos montar seu <strong>Plano de Estudos Perfeito</strong>.
                     </p>
                 </div>
 
                 {/* Progress Bar */}
                 <div className="mb-8">
                     <div className="flex justify-between text-sm text-gray-600 mb-2">
-                        <span>Etapa {currentStep} de 7</span>
+                        <span>Etapa {currentStep} de 5</span>
                         <span>{Math.round(progress)}%</span>
                     </div>
                     <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -198,71 +195,18 @@ export default function OnboardingPage() {
                 </div>
 
                 {/* Card with Steps */}
-                <Card className="mb-6">
+                <Card className="mb-6 shadow-xl border-0">
                     <CardBody className="p-8">
-                        {/* Step 1: Nome */}
+
+                        {/* Step 1: Instituição (Was 3) */}
                         {currentStep === 1 && (
-                            <div className="space-y-6">
-                                <div>
-                                    <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                                        Como você se chama?
-                                    </h2>
-                                    <p className="text-gray-600">
-                                        Queremos te conhecer melhor e personalizar sua experiência! 😊
-                                    </p>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Nome completo *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={formData.name}
-                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-lg"
-                                        placeholder="Ex: Maria Silva"
-                                        autoFocus
-                                    />
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Step 2: Email */}
-                        {currentStep === 2 && (
-                            <div className="space-y-6">
-                                <div>
-                                    <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                                        Qual seu e-mail?
-                                    </h2>
-                                    <p className="text-gray-600">
-                                        Usaremos para enviar relatórios e lembretes de estudo.
-                                    </p>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        E-mail *
-                                    </label>
-                                    <input
-                                        type="email"
-                                        value={formData.email}
-                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-lg"
-                                        placeholder="seuemail@exemplo.com"
-                                        autoFocus
-                                    />
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Step 3: Instituição */}
-                        {currentStep === 3 && (
-                            <div className="space-y-6">
+                            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                                 <div>
                                     <h2 className="text-2xl font-bold text-gray-900 mb-2">
                                         Qual sua instituição alvo? 🎯
                                     </h2>
                                     <p className="text-gray-600">
-                                        Isso nos ajudará a calcular suas metas de estudo.
+                                        Isso define o "peso" das questões no seu planner.
                                     </p>
                                 </div>
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -270,9 +214,9 @@ export default function OnboardingPage() {
                                         <button
                                             key={inst}
                                             onClick={() => setFormData({ ...formData, target_institution: inst })}
-                                            className={`p-4 rounded-lg border-2 transition-all ${formData.target_institution === inst
-                                                ? 'border-primary-500 bg-primary-50 text-primary-700 font-semibold'
-                                                : 'border-gray-300 hover:border-primary-300 text-gray-700'
+                                            className={`p-4 rounded-lg border-2 transition-all transform hover:scale-105 ${formData.target_institution === inst
+                                                ? 'border-primary-500 bg-primary-50 text-primary-700 font-semibold shadow-md'
+                                                : 'border-gray-200 hover:border-primary-300 text-gray-600'
                                                 }`}
                                         >
                                             {inst}
@@ -282,22 +226,22 @@ export default function OnboardingPage() {
                             </div>
                         )}
 
-                        {/* Step 4: Especialidade */}
-                        {currentStep === 4 && (
-                            <div className="space-y-6">
+                        {/* Step 2: Especialidade (Was 4) */}
+                        {currentStep === 2 && (
+                            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                                 <div>
                                     <h2 className="text-2xl font-bold text-gray-900 mb-2">
                                         Qual especialidade deseja? 🩺
                                     </h2>
                                     <p className="text-gray-600">
-                                        Vamos focar seus estudos nesta área.
+                                        Focaremos sua revisão nas áreas mais cobradas para {formData.target_specialty || 'sua escolha'}.
                                     </p>
                                 </div>
                                 <div>
                                     <select
                                         value={formData.target_specialty}
                                         onChange={(e) => setFormData({ ...formData, target_specialty: e.target.value })}
-                                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-lg"
+                                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-lg transition-shadow shadow-sm hover:shadow-md"
                                     >
                                         <option value="">Selecione...</option>
                                         {specialties.map((spec) => (
@@ -310,91 +254,73 @@ export default function OnboardingPage() {
                             </div>
                         )}
 
-                        {/* Step 5: Disponibilidade */}
-                        {currentStep === 5 && (
-                            <div className="space-y-6">
+                        {/* Step 3: Disponibilidade (Was 5) */}
+                        {currentStep === 3 && (
+                            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                                 <div>
                                     <h2 className="text-2xl font-bold text-gray-900 mb-2">
                                         Quanto tempo tem disponível? ⏰
                                     </h2>
                                     <p className="text-gray-600">
-                                        Isso ajudará a definir suas metas semanais.
+                                        A IA vai encaixar os estudos na sua rotina real.
                                     </p>
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Prazo para a prova
-                                    </label>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        {timeframes.map((tf) => (
-                                            <button
-                                                key={tf.value}
-                                                onClick={() => setFormData({ ...formData, exam_timeframe: tf.value as any })}
-                                                className={`p-3 rounded-lg border-2 transition-all text-left ${formData.exam_timeframe === tf.value
-                                                    ? 'border-primary-500 bg-primary-50 text-primary-700 font-semibold'
-                                                    : 'border-gray-300 hover:border-primary-300'
-                                                    }`}
-                                            >
-                                                {tf.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Horas por dia: <strong>{dailyHours}h</strong>
-                                        </label>
-                                        <input
-                                            type="range"
-                                            min="1"
-                                            max="12"
-                                            step="1"
-                                            value={dailyHours}
-                                            onChange={(e) => setDailyHours(parseInt(e.target.value))}
-                                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
-                                        />
-                                        <div className="flex justify-between text-xs text-gray-500 mt-1">
-                                            <span>1h</span>
-                                            <span>12h</span>
+                                <div className="bg-white p-6 rounded-xl border-2 border-gray-100 shadow-sm">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                Horas por dia: <strong className="text-primary-600 text-lg">{dailyHours}h</strong>
+                                            </label>
+                                            <input
+                                                type="range"
+                                                min="1"
+                                                max="12"
+                                                step="1"
+                                                value={dailyHours}
+                                                onChange={(e) => setDailyHours(parseInt(e.target.value))}
+                                                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
+                                            />
+                                            <div className="flex justify-between text-xs text-gray-500 mt-2 font-medium">
+                                                <span>1h (Leve)</span>
+                                                <span>12h (Hard)</span>
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Dias por semana: <strong>{studyDays} dias</strong>
-                                        </label>
-                                        <div className="flex flex-wrap gap-2">
-                                            {[1, 2, 3, 4, 5, 6, 7].map((d) => (
-                                                <button
-                                                    key={d}
-                                                    onClick={() => setStudyDays(d)}
-                                                    className={`w-10 h-10 rounded-full font-bold transition-all ${studyDays === d
-                                                        ? 'bg-primary-600 text-white shadow-md transform scale-105'
-                                                        : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-primary-300'
-                                                        }`}
-                                                >
-                                                    {d}
-                                                </button>
-                                            ))}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-3">
+                                                Dias por semana: <strong className="text-primary-600 text-lg">{studyDays} dias</strong>
+                                            </label>
+                                            <div className="flex flex-wrap gap-2">
+                                                {[1, 2, 3, 4, 5, 6, 7].map((d) => (
+                                                    <button
+                                                        key={d}
+                                                        onClick={() => setStudyDays(d)}
+                                                        className={`w-10 h-10 rounded-full font-bold transition-all ${studyDays === d
+                                                            ? 'bg-primary-600 text-white shadow-lg transform scale-110'
+                                                            : 'bg-white border-2 border-gray-200 text-gray-400 hover:border-primary-300 hover:text-primary-600'
+                                                            }`}
+                                                    >
+                                                        {d}
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
                                 <div className="bg-primary-50 p-4 rounded-xl border border-primary-100 flex items-center justify-center gap-3">
-                                    <Clock className="w-5 h-5 text-primary-600" />
-                                    <p className="text-primary-800 font-medium">
-                                        Total: <strong>{formData.weekly_hours} horas</strong> semanais de foco! 🚀
+                                    <Clock className="w-6 h-6 text-primary-600" />
+                                    <p className="text-primary-800 font-medium text-lg">
+                                        Meta Semanal: <strong>{formData.weekly_hours} horas</strong> 🚀
                                     </p>
                                 </div>
                             </div>
                         )}
 
-                        {/* Step 6: Horário de Ouro (Novo) */}
-                        {currentStep === 6 && (
-                            <div className="space-y-6">
+                        {/* Step 4: Horário de Ouro (Was 6) */}
+                        {currentStep === 4 && (
+                            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                                 <div>
                                     <h2 className="text-2xl font-bold text-gray-900 mb-2">
                                         Qual seu horário de ouro? 🌟
@@ -415,13 +341,13 @@ export default function OnboardingPage() {
                                             key={time.id}
                                             onClick={() => setFormData({ ...formData, best_study_time: time.id as any })}
                                             className={`w-full p-4 rounded-lg border-2 transition-all text-left flex items-center gap-4 ${formData.best_study_time === time.id
-                                                ? 'border-primary-500 bg-primary-50 text-primary-700 font-semibold'
-                                                : 'border-gray-300 hover:border-primary-300'
+                                                ? 'border-primary-500 bg-primary-50 text-primary-700 font-semibold shadow-md'
+                                                : 'border-gray-200 hover:border-primary-300 hover:bg-gray-50'
                                                 }`}
                                         >
-                                            <span className="text-2xl">{time.icon}</span>
+                                            <span className="text-3xl filter drop-shadow-sm">{time.icon}</span>
                                             <div>
-                                                <p className="font-semibold">{time.label}</p>
+                                                <p className="font-semibold text-lg">{time.label}</p>
                                             </div>
                                         </button>
                                     ))}
@@ -429,60 +355,60 @@ export default function OnboardingPage() {
                             </div>
                         )}
 
-                        {/* Step 7: Base Teórica (Original Step 6) */}
-                        {currentStep === 7 && (
-                            <div className="space-y-6">
+                        {/* Step 5: Base Teórica (Was 7) */}
+                        {currentStep === 5 && (
+                            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                                 <div>
                                     <h2 className="text-2xl font-bold text-gray-900 mb-2">
                                         Como avalia sua base teórica? 📚
                                     </h2>
                                     <p className="text-gray-600">
-                                        Seja honesto! Isso ajudará a balancear teoria e prática.
+                                        Seja honesto! Isso ajusta a dificuldade das questões iniciais.
                                     </p>
                                 </div>
 
-                                <div>
+                                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                                     <label className="block text-sm font-medium text-gray-700 mb-3">
                                         Já fez prova de residência antes?
                                     </label>
                                     <div className="flex gap-4">
                                         <button
                                             onClick={() => setFormData({ ...formData, has_attempted_before: true })}
-                                            className={`flex-1 p-4 rounded-lg border-2 transition-all ${formData.has_attempted_before
-                                                ? 'border-primary-500 bg-primary-50 text-primary-700 font-semibold'
-                                                : 'border-gray-300 hover:border-primary-300'
+                                            className={`flex-1 p-3 rounded-lg border-2 transition-all font-medium ${formData.has_attempted_before
+                                                ? 'border-green-500 bg-green-50 text-green-700'
+                                                : 'border-gray-300 bg-white hover:border-green-300'
                                                 }`}
                                         >
                                             ✅ Sim
                                         </button>
                                         <button
                                             onClick={() => setFormData({ ...formData, has_attempted_before: false })}
-                                            className={`flex-1 p-4 rounded-lg border-2 transition-all ${!formData.has_attempted_before
-                                                ? 'border-primary-500 bg-primary-50 text-primary-700 font-semibold'
-                                                : 'border-gray-300 hover:border-primary-300'
+                                            className={`flex-1 p-3 rounded-lg border-2 transition-all font-medium ${!formData.has_attempted_before
+                                                ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                                : 'border-gray-300 bg-white hover:border-blue-300'
                                                 }`}
                                         >
-                                            ⭕ Não
+                                            🆕 Não, é a primeira vez
                                         </button>
                                     </div>
                                 </div>
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-3">
-                                        Autoavaliação da base teórica
+                                        Nível de Conhecimento Atual
                                     </label>
-                                    <div className="space-y-2">
+                                    <div className="space-y-3">
                                         {theoreticalBases.map((base) => (
                                             <button
                                                 key={base.value}
                                                 onClick={() => setFormData({ ...formData, theoretical_base: base.value as any })}
-                                                className={`w-full p-4 rounded-lg border-2 transition-all text-left flex items-center gap-3 ${formData.theoretical_base === base.value
-                                                    ? 'border-primary-500 bg-primary-50 text-primary-700 font-semibold'
-                                                    : 'border-gray-300 hover:border-primary-300'
+                                                className={`w-full p-4 rounded-xl border-2 transition-all text-left flex items-center gap-4 ${formData.theoretical_base === base.value
+                                                    ? 'border-primary-500 bg-primary-50 text-primary-700 font-semibold shadow-md transform scale-[1.02]'
+                                                    : 'border-gray-200 bg-white hover:border-primary-300 hover:bg-gray-50'
                                                     }`}
                                             >
-                                                <span className="text-2xl">{base.emoji}</span>
-                                                <span>{base.label}</span>
+                                                <span className="text-3xl">{base.emoji}</span>
+                                                <span className="text-lg">{base.label}</span>
                                             </button>
                                         ))}
                                     </div>
@@ -498,39 +424,39 @@ export default function OnboardingPage() {
                         <Button
                             variant="outline"
                             onClick={handleBack}
-                            className="flex-1"
+                            className="flex-1 py-6 text-lg border-2"
                         >
-                            <ArrowLeft className="w-4 h-4 mr-2" />
+                            <ArrowLeft className="w-5 h-5 mr-2" />
                             Voltar
                         </Button>
                     )}
 
-                    {currentStep < 7 ? (
+                    {currentStep < 5 ? (
                         <Button
                             variant="primary"
                             onClick={handleNext}
                             disabled={!isStepValid()}
-                            className="flex-1"
+                            className="flex-1 py-6 text-lg shadow-lg hover:shadow-xl transition-all"
                         >
                             Próximo
-                            <ArrowRight className="w-4 h-4 ml-2" />
+                            <ArrowRight className="w-5 h-5 ml-2" />
                         </Button>
                     ) : (
                         <Button
                             variant="primary"
                             onClick={handleComplete}
                             disabled={loading}
-                            className="flex-1"
+                            className="flex-1 py-6 text-lg shadow-lg hover:shadow-xl transition-all bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 border-0"
                         >
                             {loading ? (
                                 <>
-                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                                    Salvando...
+                                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3" />
+                                    Criando Planner com IA...
                                 </>
                             ) : (
                                 <>
-                                    <CheckCircle2 className="w-4 h-4 mr-2" />
-                                    Finalizar
+                                    <Calendar className="w-5 h-5 mr-3" />
+                                    Gerar Meu Planner!
                                 </>
                             )}
                         </Button>
