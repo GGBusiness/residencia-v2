@@ -20,6 +20,7 @@ const navigation = [
     { name: 'Simulados', href: '/app/simulados', icon: Target },
     { name: 'Aulas', href: '/app/aulas', icon: BookOpen },
     { name: 'Monta Provas', href: '/app/monta-provas', icon: Sparkles },
+    { name: 'Planner', href: '/app/planner', icon: BookOpen }, // Adicionando Planner explicitamente se não tiver, ou apenas removendo Metas
     { name: 'Histórico', href: '/app/history', icon: History },
 ];
 
