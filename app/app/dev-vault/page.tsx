@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Upload, FileText, CheckCircle2, AlertCircle, Loader2, Brain, Database } from 'lucide-react';
 import { Card, CardBody } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ingestKnowledgeFile } from '@/lib/data-service';
+import { ingestKnowledgeFile } from '@/lib/ingest-service';
 
 export default function KnowledgeHub() {
     const [file, setFile] = useState<File | null>(null);
