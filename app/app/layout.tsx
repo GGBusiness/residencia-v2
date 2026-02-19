@@ -21,7 +21,7 @@ export default function AppRootLayout({
         { id: 'revisoes', label: 'Revisões', icon: Repeat, path: '/app/revisoes' },
         { id: 'monta-provas', label: 'Monta Provas', icon: Sparkles, path: '/app/monta-provas' },
         { id: 'planner', label: 'Planner', icon: Calendar, path: '/app/planner' },
-        { id: 'metas', label: 'Metas', icon: Target, path: '/app/metas' },
+
         { id: 'historico', label: 'Histórico', icon: History, path: '/app/historico' },
     ];
 

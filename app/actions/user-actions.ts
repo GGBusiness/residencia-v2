@@ -2,12 +2,16 @@
 
 import { userService, type OnboardingData } from '@/lib/user-service';
 import { getUserStats as getUserStatsService } from '@/lib/stats-service';
+import { revalidatePath } from 'next/cache';
 
 export async function completeOnboardingAction(userId: string, data: OnboardingData) {
     try {
         console.log(`[Action] Starting onboarding for user ${userId}`, data);
         const result = await userService.completeOnboarding(userId, data);
         console.log(`[Action] Onboarding result:`, result);
+        revalidatePath('/app');
+        revalidatePath('/app/metas');
+        revalidatePath('/app/perfil');
         return result;
     } catch (error: any) {
         console.error('❌ Error in completeOnboardingAction:', {

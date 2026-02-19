@@ -19,6 +19,7 @@ export interface UserProfile {
     exam_timeframe: 'menos_3_meses' | '3_6_meses' | '6_12_meses' | 'mais_1_ano';
     weekly_hours: number;
     has_attempted_before: boolean;
+    theoretical_base: 'fraca' | 'media' | 'boa' | 'excelente';
     best_study_time: 'manha' | 'tarde' | 'noite' | 'madrugada' | 'variavel';
 }
 
@@ -37,6 +38,7 @@ export interface OnboardingData {
     name: string;
     email: string;
     target_institution: string;
+    target_institutions?: { institution: string; weight: number }[];
     target_specialty: string;
     exam_timeframe: 'menos_3_meses' | '3_6_meses' | '6_12_meses' | 'mais_1_ano';
     weekly_hours: number;
@@ -126,21 +128,26 @@ class UserService {
 
             // 2. Upsert Perfil
             try {
+                // Ensure target_institutions column exists
+                await query(`ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS target_institutions JSONB`).catch(() => { });
+
                 await query(`
-                    INSERT INTO user_profiles 
-                    (user_id, target_institution, target_specialty, exam_timeframe, weekly_hours, has_attempted_before, theoretical_base, best_study_time)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                    ON CONFLICT (user_id) DO UPDATE
-                    SET target_institution = EXCLUDED.target_institution,
-                        target_specialty = EXCLUDED.target_specialty,
-                        exam_timeframe = EXCLUDED.exam_timeframe,
-                        weekly_hours = EXCLUDED.weekly_hours,
-                        has_attempted_before = EXCLUDED.has_attempted_before,
-                        theoretical_base = EXCLUDED.theoretical_base,
-                        best_study_time = EXCLUDED.best_study_time
-                `, [
+                INSERT INTO user_profiles 
+                (user_id, target_institution, target_institutions, target_specialty, exam_timeframe, weekly_hours, has_attempted_before, theoretical_base, best_study_time)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                ON CONFLICT (user_id) DO UPDATE
+                SET target_institution = EXCLUDED.target_institution,
+                    target_institutions = EXCLUDED.target_institutions,
+                    target_specialty = EXCLUDED.target_specialty,
+                    exam_timeframe = EXCLUDED.exam_timeframe,
+                    weekly_hours = EXCLUDED.weekly_hours,
+                    has_attempted_before = EXCLUDED.has_attempted_before,
+                    theoretical_base = EXCLUDED.theoretical_base,
+                    best_study_time = EXCLUDED.best_study_time
+            `, [
                     userId,
                     onboardingData.target_institution,
+                    JSON.stringify(onboardingData.target_institutions || [{ institution: onboardingData.target_institution, weight: 100 }]),
                     onboardingData.target_specialty,
                     onboardingData.exam_timeframe,
                     onboardingData.weekly_hours,

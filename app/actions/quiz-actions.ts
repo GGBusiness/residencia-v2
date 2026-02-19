@@ -122,6 +122,11 @@ export async function saveAnswerAction(attemptId: string, questionId: string, an
 
 export async function finishQuizAction(attemptId: string, stats: any) {
     try {
+        // Get user_id and config from attempt before updating
+        const { rows: attemptRows } = await query('SELECT user_id, config FROM attempts WHERE id = $1', [attemptId]);
+        const userId = attemptRows[0]?.user_id;
+        const config = attemptRows[0]?.config || {};
+
         await query(`
             UPDATE attempts
             SET status = 'COMPLETED',
@@ -131,6 +136,29 @@ export async function finishQuizAction(attemptId: string, stats: any) {
                 timer_seconds = $4
             WHERE id = $1
         `, [attemptId, stats.correctCount, stats.percentage, stats.timeSpent]);
+
+        // Log study time automatically
+        if (userId && stats.timeSpent > 0) {
+            const { logStudyTime } = await import('@/lib/study-time-service');
+            await logStudyTime(userId, 'quiz', stats.timeSpent, {
+                attemptId,
+                percentage: stats.percentage,
+                correctCount: stats.correctCount,
+            });
+        }
+
+        // Schedule spaced reviews for the quiz area
+        if (userId && config.area && config.area !== 'todas') {
+            const { scheduleSpacedReviews } = await import('@/lib/spaced-review-service');
+            const todayStr = new Date().toLocaleDateString('en-CA');
+            await scheduleSpacedReviews({
+                userId,
+                area: config.area,
+                completedDate: todayStr,
+                sourceType: 'quiz',
+            });
+        }
+
         return { success: true };
     } catch (error) {
         console.error('Finish Quiz Error', error);

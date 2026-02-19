@@ -4,16 +4,16 @@ import { db, query } from '@/lib/db';
 import { getUserStats as getUserStatsService } from '@/lib/stats-service';
 import { getDailyPlan } from '@/lib/planner-service';
 
-export async function getDashboardDataAction(userId: string) {
+export async function getDashboardDataAction(userId: string, clientDate?: string) {
     try {
         // 1. Stats
         const stats = await getUserStatsService(userId);
 
-        // 2. Daily Plan
-        const dailyPlan = await getDailyPlan(userId);
+        // 2. Daily Plan (using client's local date)
+        const dailyPlan = await getDailyPlan(userId, clientDate);
 
-        // 3. Weekly Events
-        const today = new Date();
+        // 3. Weekly Events (anchored to client's local date)
+        const today = clientDate ? new Date(clientDate + 'T12:00:00') : new Date();
         const dayOfWeek = today.getDay();
         const monday = new Date(today);
         monday.setDate(today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
@@ -27,7 +27,7 @@ export async function getDashboardDataAction(userId: string) {
             AND date >= $2 
             AND date <= $3 
             ORDER BY date, start_time
-        `, [userId, monday.toISOString().split('T')[0], sunday.toISOString().split('T')[0]]);
+        `, [userId, monday.toLocaleDateString('en-CA'), sunday.toLocaleDateString('en-CA')]);
 
 
         return {

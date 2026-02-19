@@ -12,7 +12,7 @@ import { useUser } from '@/hooks/useUser';
 
 export default function MetasPage() {
     const router = useRouter();
-    const { user, loading: userLoading } = useUser();
+    const { user, profile, goals, loading: userLoading } = useUser();
     const [stats, setStats] = useState<UserStats | null>(null);
     const [cutScores, setCutScores] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -80,19 +80,19 @@ export default function MetasPage() {
                         <div>
                             <p className="text-white/80 text-sm mb-1">Instituição Alvo</p>
                             <p className="text-2xl font-bold truncate">
-                                {(user as any)?.profile?.target_institution || 'Definir'}
+                                {profile?.target_institution || 'Definir'}
                             </p>
                         </div>
                         <div>
                             <p className="text-white/80 text-sm mb-1">Especialidade</p>
                             <p className="text-xl font-bold truncate">
-                                {(user as any)?.profile?.target_specialty || 'Definir'}
+                                {profile?.target_specialty || 'Definir'}
                             </p>
                         </div>
                         <div>
                             <p className="text-white/80 text-sm mb-1">Meta Semanal</p>
                             <p className="text-3xl font-bold">
-                                {(user as any)?.goals?.weekly_hours || 0}h
+                                {goals?.weekly_hours_goal || 0}h
                             </p>
                         </div>
                         <div>
@@ -106,7 +106,7 @@ export default function MetasPage() {
             </Card>
 
             {/* Dica Personalizada baseada no Perfil */}
-            {(user as any)?.profile?.theoretical_base === 'fraca' && (
+            {profile?.theoretical_base === 'fraca' && (
                 <div className="mb-8 bg-orange-50 border border-orange-200 p-4 rounded-xl flex items-center gap-3">
                     <div className="bg-orange-100 p-2 rounded-lg">
                         <TrendingUp className="w-6 h-6 text-orange-600" />

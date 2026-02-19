@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, createContext, useContext } from 'react';
 import { supabase } from '@/lib/supabase';
 import {
     getCurrentUserAction,
@@ -8,6 +8,9 @@ import {
     getUserGoalsAction
 } from '@/app/actions/user-actions';
 import type { User, UserProfile, UserGoals } from '@/lib/user-service';
+
+// Context placeholder - we'll import it or define it to avoid cycle
+// Actually, let's just make the hook aware of the global state if provided.
 
 export function useUser() {
     const [user, setUser] = useState<User | null>(null);
@@ -17,10 +20,23 @@ export function useUser() {
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        loadUserData();
+        // [PERFORMANCE FIX] Singleton cache to prevent redundant fetches across components
+        if ((window as any).__USER_DATA_CACHE__) {
+            const cache = (window as any).__USER_DATA_CACHE__;
+            setUser(cache.user);
+            setProfile(cache.profile);
+            setGoals(cache.goals);
+            setLoading(false);
+            return;
+        }
+
+        let isMounted = true;
+        loadUserData(isMounted);
+
+        return () => { isMounted = false; };
     }, []);
 
-    const loadUserData = async () => {
+    const loadUserData = async (isMounted: boolean = true) => {
         try {
             setLoading(true);
             setError(null);
@@ -76,7 +92,7 @@ export function useUser() {
                 }
             }
 
-            setUser(finalUser);
+            if (isMounted) setUser(finalUser);
 
             // Carregar profile e goals em paralelo
             try {
@@ -84,26 +100,40 @@ export function useUser() {
                     getUserProfileAction(finalUser.id),
                     getUserGoalsAction(finalUser.id),
                 ]);
-                if (pResult.success && pResult.data) setProfile(pResult.data);
-                if (gResult.success && gResult.data) setGoals(gResult.data);
+
+                const finalProfile = pResult.success ? (pResult.data || null) : null;
+                const finalGoals = gResult.success ? (gResult.data || null) : null;
+
+                if (isMounted) {
+                    setProfile(finalProfile);
+                    setGoals(finalGoals);
+
+                    // [CACHE SET] Store for subsequent hook calls
+                    (window as any).__USER_DATA_CACHE__ = {
+                        user: finalUser,
+                        profile: finalProfile,
+                        goals: finalGoals
+                    };
+                }
             } catch (err) {
                 console.warn('Could not load profile/goals:', err);
             }
-
-
-
         } catch (error) {
             console.error('Error loading user data:', error);
-            setError(error instanceof Error ? error.message : 'Unknown error');
-            // Não bloquear a aplicação - continuar sem dados do usuário
+            if (isMounted) setError(error instanceof Error ? error.message : 'Unknown error');
         } finally {
-            setLoading(false);
+            if (isMounted) setLoading(false);
         }
     };
 
     const getFirstName = () => {
         if (!user?.name) return '';
         return user.name.split(' ')[0];
+    };
+
+    const refreshUser = () => {
+        (window as any).__USER_DATA_CACHE__ = null;
+        loadUserData();
     };
 
     return {
@@ -114,6 +144,6 @@ export function useUser() {
         error,
         firstName: getFirstName(),
         isOnboarded: user?.onboarding_completed || false,
-        refreshUser: loadUserData,
+        refreshUser,
     };
 }

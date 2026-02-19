@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { getAvailableFilters, createAttempt, type AttemptConfig } from '@/lib/data-service';
 import { useUser } from '@/hooks/useUser';
 import { MultiSelectModal } from '@/components/ui/multi-select-modal';
+import { createExamAction } from '@/app/actions/exam-actions';
 
 type Step = 'welcome' | 'objective' | 'programs' | 'area' | 'difficulty' | 'questions' | 'years' | 'feedback' | 'plan';
 
@@ -225,11 +226,21 @@ export default function MontaProvasPage() {
                 difficulty: config.difficulty,
             };
 
-            const attempt = await createAttempt(attemptConfig, user.id);
+            // Usar a nova action wrapper que faz auto-sync se necessário
+            const attempt = await createExamAction(attemptConfig, {
+                id: user.id,
+                email: user.email,
+                name: user.name
+            });
             router.push(`/app/quiz/${attempt.id}`);
-        } catch (error) {
-            console.error('Error creating attempt:', error);
-            addMessage('agent', '❌ Erro técnico ao criar prova.');
+        } catch (error: any) {
+            console.error('Error creating attempt (FULL LOG):', error);
+            console.error('Error details:', error.message, error.stack);
+
+            // Tentar extrair mensagem do servidor se for action
+            if (error.digest) console.error('Error Digest:', error.digest);
+
+            addMessage('agent', `❌ Erro técnico ao criar prova: ${error.message || 'Erro desconhecido'}`);
         }
     };
 

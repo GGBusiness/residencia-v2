@@ -58,10 +58,15 @@ class MemoryService {
 
             // 2. Formatar Perfil & Metas
             let context = `ALUNO: ${profile.target_institution} - ${profile.target_specialty}\n`;
-            context += `PRAZO: ${profile.exam_timeframe.replace('_', ' ')}\n`;
+            context += `PRAZO: ${profile.exam_timeframe.replace(/_/g, ' ')}\n`;
+            context += `BASE TEÓRICA: ${profile.theoretical_base || 'média'}\n`;
+            context += `HORAS SEMANAIS: ${profile.weekly_hours || 20}h\n`;
+            context += `JÁ TENTOU ANTES: ${profile.has_attempted_before ? 'Sim' : 'Não'}\n`;
+            context += `TURNO PREFERIDO: ${profile.best_study_time || 'noite'}\n`;
 
             if (goals) {
                 context += `FOCO: ${goals.focus_area} (Meta Diária: ${goals.daily_hours_goal}h)\n`;
+                context += `DIVISÃO: ${goals.theory_percentage}% teoria / ${goals.practice_percentage}% prática\n`;
             }
 
             // 3. Formatar Estatísticas (Pontos Fortes/Fracos)

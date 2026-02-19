@@ -1,22 +1,30 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Download, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Download, ExternalLink, Clock } from 'lucide-react';
 import { Card, CardBody } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { getDocument, type Document } from '@/lib/data-service';
+import { logStudyTimeAction } from '@/app/actions/study-time-actions';
+import { useUser } from '@/hooks/useUser';
 import Link from 'next/link';
 
 export default function ViewerPage() {
     const params = useParams();
     const router = useRouter();
+    const { user } = useUser();
     const docId = params.docId as string;
 
     const [document, setDocument] = useState<Document | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [elapsedTime, setElapsedTime] = useState(0);
+
+    // Timer tracking
+    const startTimeRef = useRef<number>(Date.now());
+    const loggedRef = useRef(false);
 
     useEffect(() => {
         const loadDocument = async () => {
@@ -36,6 +44,65 @@ export default function ViewerPage() {
             loadDocument();
         }
     }, [docId]);
+
+    // Logging function
+    const logTime = useCallback(async () => {
+        if (loggedRef.current || !user?.id) return;
+        const durationMs = Date.now() - startTimeRef.current;
+        const durationSec = Math.round(durationMs / 1000);
+        if (durationSec < 15) return; // Ignore very short visits
+        loggedRef.current = true;
+
+        try {
+            await logStudyTimeAction(
+                user.id,
+                'revisao',
+                durationSec,
+                { docId, title: document?.title, area: document?.area, institution: document?.institution }
+            );
+            console.log(`📄 [Viewer] Logged ${durationSec}s of review time.`);
+        } catch (e) {
+            console.error('[Viewer] Failed to log time:', e);
+        }
+    }, [user?.id, document, docId]);
+
+    // Live timer tick
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setElapsedTime(Math.round((Date.now() - startTimeRef.current) / 1000));
+        }, 1000);
+        return () => clearInterval(interval);
+    }, []);
+
+    // Log on unmount / route change
+    useEffect(() => {
+        return () => { logTime(); };
+    }, [logTime]);
+
+    // Log on page close/tab close via beacon
+    useEffect(() => {
+        const handleBeforeUnload = () => {
+            if (loggedRef.current || !user?.id) return;
+            const durationSec = Math.round((Date.now() - startTimeRef.current) / 1000);
+            if (durationSec < 15) return;
+            loggedRef.current = true;
+            navigator.sendBeacon('/api/log-study-time', JSON.stringify({
+                userId: user.id,
+                activityType: 'revisao',
+                durationSeconds: durationSec,
+                metadata: { docId, title: document?.title, area: document?.area }
+            }));
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [user?.id, document, docId]);
+
+    // Format timer display
+    const formatTimer = (secs: number) => {
+        const m = Math.floor(secs / 60);
+        const s = secs % 60;
+        return `${m}:${s.toString().padStart(2, '0')}`;
+    };
 
     if (loading) {
         return (
@@ -126,6 +193,12 @@ export default function ViewerPage() {
                     </div>
 
                     <div className="flex items-center gap-2 flex-shrink-0">
+                        {/* Live Timer */}
+                        <div className="flex items-center gap-1.5 bg-gray-700 px-3 py-1.5 rounded-full">
+                            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                            <Clock className="w-3.5 h-3.5 text-gray-300" />
+                            <span className="text-sm font-mono text-gray-200">{formatTimer(elapsedTime)}</span>
+                        </div>
                         <a
                             href={document.pdf_url}
                             target="_blank"

@@ -266,10 +266,10 @@ export async function createAttempt(config: AttemptConfig, userId: string) {
     // mas assumimos que o chamador (Page/Action) já validou.
 
     const { rows } = await query(`
-        INSERT INTO attempts (user_id, config, status, total_questions, started_at)
-        VALUES ($1, $2, 'IN_PROGRESS', $3, NOW())
+        INSERT INTO attempts (user_id, attempt_type, config, status, total_questions, started_at)
+        VALUES ($1, $2, $3, 'IN_PROGRESS', $4, NOW())
         RETURNING *
-    `, [userId, JSON.stringify(config), config.questionCount || 0]);
+    `, [userId, config.mode || 'CUSTOM', JSON.stringify(config), config.questionCount || 0]);
 
     return rows[0] as Attempt;
 }

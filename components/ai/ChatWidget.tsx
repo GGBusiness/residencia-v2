@@ -6,13 +6,17 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { MessageCircle, Send, X, MoreVertical, Paperclip, Smile } from 'lucide-react';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
+import { useUser } from '@/hooks/useUser';
+import { logStudyTimeAction } from '@/app/actions/study-time-actions';
 
 export function ChatWidget() {
     const [isOpen, setIsOpen] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const sessionStartRef = useRef<number | null>(null);
+    const { user } = useUser();
 
     // Migrated to useChat for standard Chat Completions / Responses API
     const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
@@ -25,6 +29,47 @@ export function ChatWidget() {
             }
         ]
     });
+
+    // Track chat session time
+    const logChatSession = useCallback(async () => {
+        if (sessionStartRef.current && user?.id) {
+            const durationSeconds = Math.round((Date.now() - sessionStartRef.current) / 1000);
+            if (durationSeconds >= 10) {
+                await logStudyTimeAction(user.id, 'chat', durationSeconds, {
+                    messageCount: messages.filter(m => m.role === 'user').length,
+                });
+            }
+            sessionStartRef.current = null;
+        }
+    }, [user?.id, messages]);
+
+    // Start/stop timer when chat opens/closes
+    useEffect(() => {
+        if (isOpen) {
+            sessionStartRef.current = Date.now();
+        } else {
+            logChatSession();
+        }
+    }, [isOpen]);
+
+    // Log on page unload if chat is still open
+    useEffect(() => {
+        const handleUnload = () => {
+            if (isOpen && sessionStartRef.current && user?.id) {
+                const durationSeconds = Math.round((Date.now() - sessionStartRef.current) / 1000);
+                if (durationSeconds >= 10) {
+                    // Use sendBeacon for reliability on page close
+                    navigator.sendBeacon('/api/log-study-time', JSON.stringify({
+                        userId: user.id,
+                        activityType: 'chat',
+                        durationSeconds,
+                    }));
+                }
+            }
+        };
+        window.addEventListener('beforeunload', handleUnload);
+        return () => window.removeEventListener('beforeunload', handleUnload);
+    }, [isOpen, user?.id]);
 
     // Auto-scroll to bottom with smooth behavior
     useEffect(() => {

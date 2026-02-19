@@ -28,6 +28,7 @@ export default function OnboardingPage() {
         name: '',
         email: '',
         target_institution: '',
+        target_institutions: [],
         target_specialty: '',
         exam_timeframe: '3_6_meses',
         weekly_hours: 20,
@@ -128,14 +129,22 @@ export default function OnboardingPage() {
 
             if (result.success) {
                 // 3. GENERATE AI PLANNER IMMEDIATELY
-                console.log('🚀 Gerando Planner Inteligente...');
-                await generateScheduleAction(userId);
+                console.log('🚀 [Onboarding] Triggering AI Planner generation...');
+                const plannerResult = await generateScheduleAction(userId, new Date().toLocaleDateString('en-CA'));
+
+                if (!plannerResult.success) {
+                    console.warn('⚠️ [Onboarding] Planner generation failed:', plannerResult.error);
+                    // We still redirect, but let the user know they might need to generate manually
+                    alert(`✅ Perfil salvo! Mas houve um pequeno problema ao criar seu cronograma: ${plannerResult.error}. Você pode tentar gerá-lo manualmente no Planner.`);
+                } else {
+                    console.log('✅ [Onboarding] Planner generated successfully!');
+                }
 
                 // Redirecionar para dashboard
                 router.push('/app');
             } else {
                 console.error('Onboarding failed:', result.error);
-                alert(`❌ Erro: ${result.error || 'Erro desconhecido ao salvar.'}`);
+                alert(`❌ Erro no salvamento: ${result.error || 'Erro desconhecido ao salvar.'}`);
             }
         } catch (error) {
             console.error('=== ERRO NO ONBOARDING ===', error);
@@ -148,7 +157,7 @@ export default function OnboardingPage() {
     const isStepValid = () => {
         switch (currentStep) {
             case 1: // Institution
-                return formData.target_institution !== '';
+                return (formData.target_institutions?.length || 0) > 0;
             case 2: // Specialty
                 return formData.target_specialty !== '';
             case 3: // Availability
@@ -203,26 +212,112 @@ export default function OnboardingPage() {
                             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                                 <div>
                                     <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                                        Qual sua instituição alvo? 🎯
+                                        Quais suas instituições alvo? 🎯
                                     </h2>
                                     <p className="text-gray-600">
-                                        Isso define o "peso" das questões no seu planner.
+                                        Selecione 1 a 3 bancas e ajuste o peso de cada uma.
                                     </p>
                                 </div>
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                    {institutions.map((inst) => (
-                                        <button
-                                            key={inst}
-                                            onClick={() => setFormData({ ...formData, target_institution: inst })}
-                                            className={`p-4 rounded-lg border-2 transition-all transform hover:scale-105 ${formData.target_institution === inst
-                                                ? 'border-primary-500 bg-primary-50 text-primary-700 font-semibold shadow-md'
-                                                : 'border-gray-200 hover:border-primary-300 text-gray-600'
-                                                }`}
-                                        >
-                                            {inst}
-                                        </button>
-                                    ))}
+                                    {institutions.map((inst) => {
+                                        const selected = formData.target_institutions?.some(t => t.institution === inst) || false;
+                                        return (
+                                            <button
+                                                key={inst}
+                                                onClick={() => {
+                                                    const current = formData.target_institutions || [];
+                                                    if (selected) {
+                                                        // Remove
+                                                        const remaining = current.filter(t => t.institution !== inst);
+                                                        // Redistribute weights
+                                                        if (remaining.length > 0) {
+                                                            const perItem = Math.round(100 / remaining.length);
+                                                            remaining.forEach((item, i) => {
+                                                                item.weight = i === remaining.length - 1 ? 100 - perItem * (remaining.length - 1) : perItem;
+                                                            });
+                                                        }
+                                                        setFormData({
+                                                            ...formData,
+                                                            target_institutions: remaining,
+                                                            target_institution: remaining[0]?.institution || '',
+                                                        });
+                                                    } else if (current.length < 3) {
+                                                        // Add
+                                                        const newList = [...current, { institution: inst, weight: 0 }];
+                                                        const perItem = Math.round(100 / newList.length);
+                                                        newList.forEach((item, i) => {
+                                                            item.weight = i === newList.length - 1 ? 100 - perItem * (newList.length - 1) : perItem;
+                                                        });
+                                                        // Primary = first selected or highest weight
+                                                        const primary = newList.reduce((a, b) => a.weight >= b.weight ? a : b);
+                                                        setFormData({
+                                                            ...formData,
+                                                            target_institutions: newList,
+                                                            target_institution: primary.institution,
+                                                        });
+                                                    }
+                                                }}
+                                                disabled={!selected && (formData.target_institutions?.length || 0) >= 3}
+                                                className={`p-4 rounded-lg border-2 transition-all transform hover:scale-105 ${selected
+                                                    ? 'border-primary-500 bg-primary-50 text-primary-700 font-semibold shadow-md'
+                                                    : (formData.target_institutions?.length || 0) >= 3
+                                                        ? 'border-gray-100 text-gray-300 cursor-not-allowed'
+                                                        : 'border-gray-200 hover:border-primary-300 text-gray-600'
+                                                    }`}
+                                            >
+                                                {inst}
+                                                {selected && <span className="ml-1">✓</span>}
+                                            </button>
+                                        );
+                                    })}
                                 </div>
+
+                                {/* Weight Sliders */}
+                                {(formData.target_institutions?.length || 0) > 1 && (
+                                    <div className="mt-4 bg-gray-50 rounded-xl p-5 space-y-4">
+                                        <p className="text-sm font-semibold text-gray-600 uppercase tracking-wider">Peso de cada banca</p>
+                                        {formData.target_institutions?.map((item, idx) => (
+                                            <div key={item.institution} className="flex items-center gap-4">
+                                                <span className="text-sm font-medium text-gray-700 w-24 truncate">{item.institution}</span>
+                                                <input
+                                                    type="range"
+                                                    min="10"
+                                                    max="90"
+                                                    value={item.weight}
+                                                    onChange={(e) => {
+                                                        const newWeight = parseInt(e.target.value);
+                                                        const others = formData.target_institutions!.filter((_, i) => i !== idx);
+                                                        const remaining = 100 - newWeight;
+                                                        const totalOtherWeights = others.reduce((s, o) => s + o.weight, 0);
+                                                        const updated = formData.target_institutions!.map((t, i) => {
+                                                            if (i === idx) return { ...t, weight: newWeight };
+                                                            const ratio = totalOtherWeights > 0 ? t.weight / totalOtherWeights : 1 / others.length;
+                                                            return { ...t, weight: Math.max(10, Math.round(remaining * ratio)) };
+                                                        });
+                                                        // Fix rounding
+                                                        const sum = updated.reduce((s, t) => s + t.weight, 0);
+                                                        if (sum !== 100) updated[updated.length - 1].weight += 100 - sum;
+                                                        const primary = updated.reduce((a, b) => a.weight >= b.weight ? a : b);
+                                                        setFormData({
+                                                            ...formData,
+                                                            target_institutions: updated,
+                                                            target_institution: primary.institution,
+                                                        });
+                                                    }}
+                                                    className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
+                                                />
+                                                <span className="text-sm font-bold text-primary-700 w-12 text-right">{item.weight}%</span>
+                                            </div>
+                                        ))}
+                                        {/* Visual weight bar */}
+                                        <div className="flex h-3 rounded-full overflow-hidden">
+                                            {formData.target_institutions?.map((item, i) => {
+                                                const colors = ['bg-primary-500', 'bg-purple-500', 'bg-amber-500'];
+                                                return <div key={item.institution} className={`${colors[i]} transition-all duration-300`} style={{ width: `${item.weight}%` }} />;
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
 

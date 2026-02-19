@@ -10,27 +10,34 @@ if (!process.env.DIGITALOCEAN_DB_URL && process.env.NODE_ENV === 'production') {
 // Em serverless (Vercel), é importante gerenciar isso para não estourar conexões.
 // O erro "self-signed certificate in certificate chain" no Vercel/DigitalOcean
 // geralmente exige que o Node ignore completamente a verificação de TLS em produção.
-if (process.env.NODE_ENV === 'production') {
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-}
+// Forçar o Node a ignorar erros de certificado auto-assinado (DigitalOcean)
+// Fazemos isso em todos os ambientes pois o banco é o mesmo.
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 if (!pool) {
-  console.log('🌐 [lib/db] Initializing connection pool (Aggressive SSL Fix)...');
+  console.log('🌐 [lib/db] Initializing connection pool...');
 
-  // Limpar a connection string de qualquer conflito de sslmode
-  let connectionString = process.env.DIGITALOCEAN_DB_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL || '';
+  // Tentar carregar dotenv se estiver em scripts (onde o Next não carrega automaticamente)
+  if (!process.env.DIGITALOCEAN_DB_URL) {
+    try {
+      const dotenv = require('dotenv');
+      const path = require('path');
+      dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+    } catch (e) {
+      // Ignorar se falhar (ex: no browser, mas esse arquivo só roda no server)
+    }
+  }
 
-  if (connectionString.includes('sslmode=require')) {
-    connectionString = connectionString.replace('sslmode=require', 'sslmode=no-verify');
-  } else if (!connectionString.includes('sslmode=')) {
-    const separator = connectionString.includes('?') ? '&' : '?';
-    connectionString += `${separator}sslmode=no-verify`;
+  const connectionString = process.env.DIGITALOCEAN_DB_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL || '';
+
+  if (!connectionString) {
+    console.warn('⚠️ [lib/db] No connection string found! Database will fail.');
   }
 
   pool = new Pool({
     connectionString,
     ssl: {
-      rejectUnauthorized: false, // redundante mas garantido
+      rejectUnauthorized: false
     },
     max: 10,
     idleTimeoutMillis: 30000,
@@ -41,8 +48,10 @@ if (!pool) {
     console.error('❌ [lib/db] Pool Error:', err.message);
   });
 
-  console.log('✅ [lib/db] Pool created with Aggressive SSL parameters.');
+  console.log('✅ [lib/db] Pool created.');
 }
+
+
 
 export const db = pool!;
 

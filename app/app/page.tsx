@@ -29,18 +29,21 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
 import { useUser } from '@/hooks/useUser';
 import { getDashboardDataAction } from '@/app/actions/study-actions';
+import { getStudyTimeSummaryAction } from '@/app/actions/study-time-actions';
+import { ProbabilityScoreCard } from '@/components/dashboard/ProbabilityScoreCard';
 
 export default function HomePage() {
     const router = useRouter();
-    const { user, firstName } = useUser();
+    const { user, profile, goals, firstName } = useUser();
     const [stats, setStats] = useState<any>(null);
     const [weekEvents, setWeekEvents] = useState<any[]>([]);
     const [dailyPlan, setDailyPlan] = useState<any>(null);
+    const [studyTime, setStudyTime] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        loadDashboard();
-    }, []);
+        if (user?.id) loadDashboard();
+    }, [user?.id]);
 
 
 
@@ -50,7 +53,15 @@ export default function HomePage() {
         try {
             if (!user?.id) return;
 
-            const result = await getDashboardDataAction(user.id);
+            const localToday = new Date().toLocaleDateString('en-CA');
+            const [result, studyTimeResult] = await Promise.all([
+                getDashboardDataAction(user.id, localToday),
+                getStudyTimeSummaryAction(user.id),
+            ]);
+
+            if (studyTimeResult.success) {
+                setStudyTime(studyTimeResult.data);
+            }
 
             if (result.success && result.data) {
                 setStats(result.data.stats);
@@ -67,10 +78,10 @@ export default function HomePage() {
                 for (let i = 0; i < 7; i++) {
                     const date = new Date(monday);
                     date.setDate(monday.getDate() + i);
-                    const dateStr = date.toISOString().split('T')[0];
+                    const dateStr = date.toLocaleDateString('en-CA');
                     const dayEvents = events.filter((e: any) => {
-                        // Ensure date comp is correct string vs string
-                        const eDate = new Date(e.date).toISOString().split('T')[0];
+                        // Compare date strings directly (both are YYYY-MM-DD format)
+                        const eDate = typeof e.date === 'string' ? e.date.split('T')[0] : new Date(e.date).toLocaleDateString('en-CA');
                         return eDate === dateStr;
                     });
 
@@ -115,13 +126,13 @@ export default function HomePage() {
 
     const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
     const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = today.toLocaleDateString('en-CA');
     const todayData = weekEvents.find(d => d.dateStr === todayStr);
     const weekTotalHours = weekEvents.reduce((sum, d) => sum + d.totalHours, 0);
 
-    // Meta: 20h/semana = ~3h/dia útil
-    const weeklyGoal = 20;
-    const dailyGoal = 3;
+    // Meta: Dinâmica do Usuário
+    const weeklyGoal = goals?.weekly_hours_goal || 20;
+    const dailyGoal = Math.round((weeklyGoal / 5) * 10) / 10;
 
     // Mock names mapping for charts
     const areaNames: Record<string, string> = {
@@ -143,6 +154,11 @@ export default function HomePage() {
                     <h1 className="text-3xl font-bold text-slate-900 mb-2">
                         {firstName ? `Olá, ${firstName}! 👋` : 'Dashboard'}
                     </h1>
+                    <p className="text-slate-500">
+                        {profile?.target_specialty && profile?.target_institution
+                            ? `${profile.target_specialty} — ${profile.target_institution}`
+                            : 'Seu painel de estudos personalizado'}
+                    </p>
                     <p className="text-slate-500 flex items-center gap-2">
                         <Calendar className="w-4 h-4" />
                         {today.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
@@ -267,6 +283,9 @@ export default function HomePage() {
                 </div>
             )}
 
+            {/* Score de Probabilidade */}
+            {user?.id && <ProbabilityScoreCard userId={user.id} />}
+
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Card hover>
@@ -274,20 +293,25 @@ export default function HomePage() {
                         <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
                             <Clock className="w-6 h-6" />
                         </div>
-                        <div>
+                        <div className="flex-1">
                             <p className="text-sm font-medium text-slate-500">Estudo Hoje</p>
                             <div className="flex items-baseline gap-2">
                                 <h3 className="text-2xl font-bold text-slate-900">
-                                    {todayData ? todayData.totalHours.toFixed(1) : '0'}h
+                                    {studyTime?.today?.formatted || '0min'}
                                 </h3>
                                 <span className="text-xs font-medium text-slate-400">/ {dailyGoal}h meta</span>
                             </div>
                             <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2">
                                 <div
                                     className="bg-blue-500 h-1.5 rounded-full transition-all duration-1000"
-                                    style={{ width: `${Math.min((todayData?.totalHours || 0) / dailyGoal * 100, 100)}%` }}
+                                    style={{ width: `${Math.min(((studyTime?.today?.seconds || 0) / 3600) / dailyGoal * 100, 100)}%` }}
                                 ></div>
                             </div>
+                            {studyTime?.today?.sessions > 0 && (
+                                <p className="text-xs text-slate-400 mt-1">
+                                    {studyTime.today.sessions} {studyTime.today.sessions === 1 ? 'sessão' : 'sessões'}
+                                </p>
+                            )}
                         </div>
                     </CardBody>
                 </Card>
@@ -297,20 +321,25 @@ export default function HomePage() {
                         <div className="p-3 bg-purple-50 text-purple-600 rounded-xl">
                             <Calendar className="w-6 h-6" />
                         </div>
-                        <div>
+                        <div className="flex-1">
                             <p className="text-sm font-medium text-slate-500">Estudo Semanal</p>
                             <div className="flex items-baseline gap-2">
                                 <h3 className="text-2xl font-bold text-slate-900">
-                                    {weekTotalHours.toFixed(1)}h
+                                    {studyTime?.week?.formatted || '0min'}
                                 </h3>
                                 <span className="text-xs font-medium text-slate-400">/ {weeklyGoal}h meta</span>
                             </div>
                             <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2">
                                 <div
                                     className="bg-purple-500 h-1.5 rounded-full transition-all duration-1000"
-                                    style={{ width: `${Math.min(weekTotalHours / weeklyGoal * 100, 100)}%` }}
+                                    style={{ width: `${Math.min(((studyTime?.week?.seconds || 0) / 3600) / weeklyGoal * 100, 100)}%` }}
                                 ></div>
                             </div>
+                            {studyTime?.week?.sessions > 0 && (
+                                <p className="text-xs text-slate-400 mt-1">
+                                    {studyTime.week.sessions} {studyTime.week.sessions === 1 ? 'sessão' : 'sessões'}
+                                </p>
+                            )}
                         </div>
                     </CardBody>
                 </Card>
