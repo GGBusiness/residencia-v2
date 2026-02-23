@@ -227,20 +227,21 @@ export default function MontaProvasPage() {
             };
 
             // Usar a nova action wrapper que faz auto-sync se necessário
-            const attempt = await createExamAction(attemptConfig, {
+            const result = await createExamAction(attemptConfig, {
                 id: user.id,
                 email: user.email,
                 name: user.name
             });
-            router.push(`/app/quiz/${attempt.id}`);
+
+            if (!result.success || !result.data) {
+                addMessage('agent', `❌ Erro ao criar prova: ${result.error || 'Erro desconhecido'}`);
+                return;
+            }
+
+            router.push(`/app/quiz/${result.data.id}`);
         } catch (error: any) {
             console.error('Error creating attempt (FULL LOG):', error);
-            console.error('Error details:', error.message, error.stack);
-
-            // Tentar extrair mensagem do servidor se for action
-            if (error.digest) console.error('Error Digest:', error.digest);
-
-            addMessage('agent', `❌ Erro técnico ao criar prova: ${error.message || 'Erro desconhecido'}`);
+            addMessage('agent', `❌ Erro técnico: ${error.message || 'Erro desconhecido'}`);
         }
     };
 

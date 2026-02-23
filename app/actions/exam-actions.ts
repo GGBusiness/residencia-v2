@@ -3,35 +3,42 @@
 import { createAttempt, type AttemptConfig, type Attempt } from '@/lib/data-service';
 import { userService } from '@/lib/user-service';
 
-export async function createExamAction(config: AttemptConfig, user: { id: string, email: string, name: string }) {
+/**
+ * Wrapper that returns {success, data, error} instead of throwing.
+ * Next.js hides thrown errors in production ("Server Components render..." message).
+ * By returning the error as data, the client can display the real message.
+ */
+export async function createExamAction(
+    config: AttemptConfig,
+    user: { id: string; email: string; name: string }
+): Promise<{ success: boolean; data?: Attempt; error?: string }> {
     try {
         console.log('🚀 [createExamAction] Criando prova para:', user.id);
+        console.log('📋 [createExamAction] Config:', JSON.stringify(config).substring(0, 200));
+
         const attempt = await createAttempt(config, user.id);
 
-        // Ensure the response is serializable (Date objects from PG can break server actions)
-        return JSON.parse(JSON.stringify(attempt)) as Attempt;
+        // Ensure serializable (Date objects from PG break server action responses)
+        const safeAttempt = JSON.parse(JSON.stringify(attempt)) as Attempt;
+        return { success: true, data: safeAttempt };
     } catch (error: any) {
-        console.error('❌ [createExamAction] Erro inicial:', error.message);
+        console.error('❌ [createExamAction] Erro inicial:', error.message, error.code, error.stack);
 
         // Se for erro de Foreign Key (usuário não existe na tabela users)
         if (error.message?.includes('foreign key constraint') || error.code === '23503') {
-            console.warn('⚠️ [createExamAction] Usuário não encontrado no banco. Tentando sincronizar...');
-
+            console.warn('⚠️ [createExamAction] Usuário não encontrado. Sincronizando...');
             try {
-                // Tentar sincronizar o usuário
                 await userService.syncUser(user.id, user.email, user.name);
-                console.log('✅ [createExamAction] Usuário sincronizado. Tentando criar prova novamente...');
-
-                // Tentar novamente
                 const retryAttempt = await createAttempt(config, user.id);
-                return JSON.parse(JSON.stringify(retryAttempt)) as Attempt;
+                const safeRetry = JSON.parse(JSON.stringify(retryAttempt)) as Attempt;
+                return { success: true, data: safeRetry };
             } catch (syncError: any) {
-                console.error('❌ [createExamAction] Falha crítica na sincronização:', syncError);
-                throw new Error(`Falha ao sincronizar usuário: ${syncError.message}`);
+                console.error('❌ [createExamAction] Falha sincronização:', syncError.message);
+                return { success: false, error: `Sync falhou: ${syncError.message}` };
             }
         }
 
-        // Re-throw with a clean error message (avoid non-serializable error objects)
-        throw new Error(error.message || 'Erro desconhecido ao criar prova');
+        // Return the REAL error message to the client (not throw)
+        return { success: false, error: error.message || 'Erro desconhecido ao criar prova' };
     }
 }
