@@ -2,6 +2,7 @@ import { query } from '../lib/db';
 import dotenv from 'dotenv';
 
 dotenv.config({ path: '.env.local' });
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 async function setupAdminSchema() {
     console.log('🛡️ Configurando Schema do Admin...');
