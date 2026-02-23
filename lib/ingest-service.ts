@@ -1,17 +1,21 @@
 'use server';
 
 import { query } from '@/lib/db';
-import OpenAI from 'openai';
-import pdf from 'pdf-parse';
 import { unstable_noStore as noStore } from 'next/cache';
 
 // Knowledge Ingestion (Server-side PDF processing)
+// Uses dynamic imports to avoid bundling heavy deps (pdf-parse, openai)
 export async function ingestKnowledgeFile(formData: FormData) {
     noStore();
 
     const file = formData.get('file') as File;
     if (!file) throw new Error('No file provided');
     if (!process.env.OPENAI_API_KEY) throw new Error('OpenAI key missing');
+
+    // Dynamic imports to avoid crashing serverless functions
+    const { default: OpenAI } = await import('openai');
+    const pdfParseModule: any = await import('pdf-parse');
+    const pdf = pdfParseModule.default || pdfParseModule;
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const buffer = Buffer.from(await file.arrayBuffer());

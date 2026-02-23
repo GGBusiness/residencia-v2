@@ -212,7 +212,7 @@ export default function HomePage() {
                                     }}
                                 >
                                     <Brain className="w-5 h-5 mr-2" />
-                                    Começar Treino ({dailyPlan.recommendedConfig.questionCount}q)
+                                    Começar Treino ({dailyPlan?.recommendedConfig?.questionCount || 20}q)
                                 </Button>
                             </div>
                         </div>
