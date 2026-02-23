@@ -93,8 +93,8 @@ export async function startReviewSessionAction(userId: string) {
 
         // 2. Create a "Review Attempt"
         const { rows: attempts } = await query(`
-            INSERT INTO attempts (user_id, attempt_type, config, status, started_at)
-            VALUES ($1, 'REVIEW', $2, 'STARTED', NOW())
+            INSERT INTO attempts (user_id, config, status, total_questions, started_at)
+            VALUES ($1, $2, 'IN_PROGRESS', $3, NOW())
             RETURNING id
         `, [
             userId,
@@ -102,7 +102,8 @@ export async function startReviewSessionAction(userId: string) {
                 type: 'review',
                 specific_ids: questionIds,
                 questionCount: questionIds.length
-            })
+            }),
+            questionIds.length
         ]);
 
         return { success: true, attemptId: attempts[0].id };

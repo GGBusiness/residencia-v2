@@ -1,12 +1,11 @@
 'use server';
 
 import { createAttempt, type AttemptConfig, type Attempt } from '@/lib/data-service';
-import { userService } from '@/lib/user-service';
+import { query } from '@/lib/db';
 
 /**
  * Wrapper that returns {success, data, error} instead of throwing.
  * Next.js hides thrown errors in production ("Server Components render..." message).
- * By returning the error as data, the client can display the real message.
  */
 export async function createExamAction(
     config: AttemptConfig,
@@ -14,7 +13,6 @@ export async function createExamAction(
 ): Promise<{ success: boolean; data?: Attempt; error?: string }> {
     try {
         console.log('🚀 [createExamAction] Criando prova para:', user.id);
-        console.log('📋 [createExamAction] Config:', JSON.stringify(config).substring(0, 200));
 
         const attempt = await createAttempt(config, user.id);
 
@@ -22,23 +20,27 @@ export async function createExamAction(
         const safeAttempt = JSON.parse(JSON.stringify(attempt)) as Attempt;
         return { success: true, data: safeAttempt };
     } catch (error: any) {
-        console.error('❌ [createExamAction] Erro inicial:', error.message, error.code, error.stack);
+        console.error('❌ [createExamAction] Erro:', error.message, error.code);
 
-        // Se for erro de Foreign Key (usuário não existe na tabela users)
+        // FK constraint: user_id → profiles. User might not have a profile row yet.
         if (error.message?.includes('foreign key constraint') || error.code === '23503') {
-            console.warn('⚠️ [createExamAction] Usuário não encontrado. Sincronizando...');
+            console.warn('⚠️ [createExamAction] FK falhou — tentando criar profile...');
             try {
-                await userService.syncUser(user.id, user.email, user.name);
+                // Ensure user exists in profiles (FK target table)
+                await query(`
+                    INSERT INTO profiles (id, email, name)
+                    VALUES ($1, $2, $3)
+                    ON CONFLICT (id) DO NOTHING
+                `, [user.id, user.email, user.name]);
+
                 const retryAttempt = await createAttempt(config, user.id);
-                const safeRetry = JSON.parse(JSON.stringify(retryAttempt)) as Attempt;
-                return { success: true, data: safeRetry };
+                return { success: true, data: JSON.parse(JSON.stringify(retryAttempt)) };
             } catch (syncError: any) {
-                console.error('❌ [createExamAction] Falha sincronização:', syncError.message);
-                return { success: false, error: `Sync falhou: ${syncError.message}` };
+                console.error('❌ [createExamAction] Retry falhou:', syncError.message);
+                return { success: false, error: `FK retry falhou: ${syncError.message}` };
             }
         }
 
-        // Return the REAL error message to the client (not throw)
-        return { success: false, error: error.message || 'Erro desconhecido ao criar prova' };
+        return { success: false, error: error.message || 'Erro desconhecido' };
     }
 }

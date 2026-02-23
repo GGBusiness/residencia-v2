@@ -259,15 +259,15 @@ export async function getDocument(docId: string) {
 
 // Attempts
 export async function createAttempt(config: AttemptConfig, userId: string) {
-    // Obter user real
-    // Nota: para endpoints seguros, deveríamos validar a sessão aqui também,
-    // mas assumimos que o chamador (Page/Action) já validou.
+    // DB schema: attempts(id, user_id, config, status, score, total_questions,
+    //   timer_seconds, started_at, completed_at, percentage, correct_answers)
+    // Note: NO attempt_type column exists. FK user_id → profiles.
 
     const { rows } = await query(`
-        INSERT INTO attempts (user_id, attempt_type, config, status, total_questions, started_at)
-        VALUES ($1, $2, $3, 'IN_PROGRESS', $4, NOW())
+        INSERT INTO attempts (user_id, config, status, total_questions, timer_seconds, started_at)
+        VALUES ($1, $2, 'IN_PROGRESS', $3, $4, NOW())
         RETURNING *
-    `, [userId, config.mode || 'CUSTOM', JSON.stringify(config), config.questionCount || 0]);
+    `, [userId, JSON.stringify(config), config.questionCount || 0, config.timer || null]);
 
     return rows[0] as Attempt;
 }
