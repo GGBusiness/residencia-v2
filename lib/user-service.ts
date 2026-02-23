@@ -1,5 +1,6 @@
 import { db, query } from './db';
-import { supabase } from './supabase'; // Mantido apenas para tipos ou auth se necessário
+// REMOVED: import { supabase } from './supabase' - it calls createClientComponentClient() at module level,
+// which crashes ALL server-side code that imports this file (exam-actions, user-actions, etc.)
 
 export interface User {
     id: string;
