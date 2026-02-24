@@ -6,10 +6,10 @@ import { Card, CardBody } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
-import { getAvailableFilters, createAttempt, type AttemptConfig } from '@/lib/data-service';
+import { getAvailableFilters } from '@/lib/data-service';
 import { useUser } from '@/hooks/useUser';
 import { MultiSelectModal } from '@/components/ui/multi-select-modal';
-import { createExamAction } from '@/app/actions/exam-actions';
+import { createFullExamAction } from '@/app/actions/exam-actions';
 
 type Step = 'welcome' | 'objective' | 'programs' | 'area' | 'difficulty' | 'questions' | 'years' | 'feedback' | 'plan';
 
@@ -195,54 +195,33 @@ export default function MontaProvasPage() {
             addMessage('agent', '❌ Erro: Usuário não identificado. Tente recarregar a página.');
             return;
         }
-        try {
-            addMessage('agent', '🔍 Buscando questões no banco vetorial...');
-            const { selectDocuments } = await import('@/lib/pdf-selector');
-            const selectedDocs = await selectDocuments({
-                area: config.area,
-                years: config.anos,
-                questionCount: config.questoes,
-                programs: config.programs,
-                objective: config.objetivo,
-            });
 
-            if (selectedDocs.length === 0) {
-                addMessage('agent', '❌ Não encontrei provas suficientes. Tente diminuir os filtros.');
-                return;
-            }
+        addMessage('agent', '🔍 Buscando questões e montando prova...');
 
-            addMessage('agent', `✅ Encontrei ${selectedDocs.length} provas compatíveis! Gerando caderno...`);
-            const attemptConfig: AttemptConfig = {
-                mode: 'CUSTOM',
-                feedbackMode: config.feedbackMode,
-                documentIds: selectedDocs.map((d) => d.id),
-                questionCount: config.questoes,
-                timer: config.timer > 0 ? config.timer * 60 : undefined,
-                objective: config.objetivo,
-                area: config.area,
-                subareas: config.subareas,
-                programs: config.programs,
-                years: config.anos,
-                difficulty: config.difficulty,
-            };
+        // Single server action — everything happens server-side in one request.
+        // No multiple client↔server boundaries = no masked errors.
+        const result = await createFullExamAction({
+            area: config.area,
+            years: config.anos,
+            questionCount: config.questoes,
+            programs: config.programs,
+            objective: config.objetivo,
+            feedbackMode: config.feedbackMode,
+            timer: config.timer > 0 ? config.timer * 60 : undefined,
+            subareas: config.subareas,
+            difficulty: config.difficulty,
+            userId: user.id,
+            userEmail: user.email,
+            userName: user.name,
+        });
 
-            // Usar a nova action wrapper que faz auto-sync se necessário
-            const result = await createExamAction(attemptConfig, {
-                id: user.id,
-                email: user.email,
-                name: user.name
-            });
-
-            if (!result.success || !result.data) {
-                addMessage('agent', `❌ Erro ao criar prova: ${result.error || 'Erro desconhecido'}`);
-                return;
-            }
-
-            router.push(`/app/quiz/${result.data.id}`);
-        } catch (error: any) {
-            console.error('Error creating attempt (FULL LOG):', error);
-            addMessage('agent', `❌ Erro técnico: ${error.message || 'Erro desconhecido'}`);
+        if (!result.success || !result.attemptId) {
+            addMessage('agent', `❌ ${result.error || 'Erro desconhecido ao criar prova'}`);
+            return;
         }
+
+        addMessage('agent', `✅ Prova montada com ${result.documentCount} provas! Abrindo...`);
+        router.push(`/app/quiz/${result.attemptId}`);
     };
 
     return (
