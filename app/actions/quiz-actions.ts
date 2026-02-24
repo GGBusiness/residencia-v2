@@ -1,6 +1,6 @@
 'use server';
 
-import { db, query } from '@/lib/db';
+import { query } from '@/lib/db';
 
 export interface QuizData {
     attempt: any;
@@ -8,6 +8,15 @@ export interface QuizData {
     answers: any[];
 }
 
+/**
+ * Load quiz data — questions filtered by documentIds from attempt config.
+ * 
+ * Actual questions columns: id, document_id, number_in_exam, stem,
+ * option_a, option_b, option_c, option_d, option_e, correct_option (char),
+ * explanation, area, subarea, topic, created_at
+ * 
+ * NOTE: NO 'difficulty' column exists. 0/474 questions have explanations.
+ */
 export async function getQuizDataAction(attemptId: string): Promise<{ success: boolean; data?: QuizData; error?: string }> {
     try {
         // 1. Get Attempt
@@ -15,92 +24,121 @@ export async function getQuizDataAction(attemptId: string): Promise<{ success: b
         const attempt = attempts[0];
         if (!attempt) return { success: false, error: 'Attempt not found' };
 
-        // 2. Get Questions based on Config
-        // Note: usage of config to filter questions
         const config = attempt.config || {};
-        let sql = 'SELECT * FROM questions WHERE 1=1';
-        const params: any[] = [];
-        let pIndex = 1;
+        console.log('[getQuizDataAction] Config:', JSON.stringify(config).substring(0, 200));
 
-        if (config.area && config.area !== 'todas') {
-            sql += ` AND area = $${pIndex}`;
-            params.push(config.area);
-            pIndex++;
+        // 2. Get Questions — use documentIds from config
+        let questions: any[] = [];
+
+        if (config.documentIds && config.documentIds.length > 0) {
+            const { rows } = await query(`
+                SELECT q.id, q.document_id, q.number_in_exam, q.stem,
+                       q.option_a, q.option_b, q.option_c, q.option_d, q.option_e,
+                       q.correct_option, q.explanation, q.area, q.subarea, q.topic,
+                       d.title as doc_title, d.institution, d.year as doc_year
+                FROM questions q
+                JOIN documents d ON q.document_id = d.id
+                WHERE q.document_id = ANY($1::uuid[])
+                ORDER BY d.year DESC, q.number_in_exam ASC NULLS LAST
+            `, [config.documentIds]);
+            questions = rows;
+            console.log(`[getQuizDataAction] Found ${questions.length} questions from ${config.documentIds.length} documents`);
         }
 
-        if (config.difficulty && config.difficulty !== 'todas') {
-            sql += ` AND difficulty ILIKE $${pIndex}`;
-            params.push(`%${config.difficulty}%`);
-            pIndex++;
-        }
-
-        // Add limit
-        sql += ` LIMIT $${pIndex}`;
-        params.push(config.questionCount || 20);
-
-        const { rows: questions } = await query(sql, params);
-
-        // 2b. If no questions found, insert a dummy one for testing if table is empty
+        // Fallback: if no questions from documentIds, try area filter
         if (questions.length === 0) {
-            // Check if table is truly empty
-            const { rows: count } = await query('SELECT COUNT(*) FROM questions');
-            if (parseInt(count[0].count) === 0) {
-                await query(`
-                    INSERT INTO documents (title, type, year, institution, area)
-                    VALUES ('Prova Exemplo', 'PROVA', 2024, 'ENARE', 'CLINICA')
-                `);
+            console.log('[getQuizDataAction] Fallback: querying by area');
+            let sql = `
+                SELECT q.id, q.document_id, q.number_in_exam, q.stem,
+                       q.option_a, q.option_b, q.option_c, q.option_d, q.option_e,
+                       q.correct_option, q.explanation, q.area, q.subarea, q.topic,
+                       d.title as doc_title, d.institution, d.year as doc_year
+                FROM questions q
+                JOIN documents d ON q.document_id = d.id
+                WHERE 1=1
+            `;
+            const params: any[] = [];
+            let pIndex = 1;
 
-                const { rows: docs } = await query('SELECT id FROM documents LIMIT 1');
-                const docId = docs[0].id;
-
-                await query(`
-                    INSERT INTO questions (document_id, stem, option_a, option_b, option_c, option_d, correct_option, area, difficulty)
-                    VALUES ($1, 'Qual é a capital da França?', 'Londres', 'Berlim', 'Paris', 'Madrid', 'C', 'CLINICA', 'FACIL')
-                `, [docId]);
-
-                // Re-query
-                const { rows: retry } = await query(sql, params);
-                questions.push(...retry);
+            if (config.area && config.area !== 'todas') {
+                sql += ` AND q.area = $${pIndex}`;
+                params.push(config.area);
+                pIndex++;
             }
+
+            sql += ` ORDER BY d.year DESC, q.number_in_exam ASC NULLS LAST`;
+            sql += ` LIMIT $${pIndex}`;
+            params.push(config.questionCount || 20);
+
+            const { rows } = await query(sql, params);
+            questions = rows;
         }
 
-        // Map DB fields to Frontend fields
+        // Limit to requested count
+        const limit = config.questionCount || 20;
+        if (questions.length > limit) {
+            questions = questions.slice(0, limit);
+        }
+
+        // 3. Map DB fields to Frontend fields
         const mappedQuestions = questions.map(q => ({
             id: q.id,
-            institution: 'Simulado', // Join with document if needed, for now placeholder or query needs join
-            year: 2024,
+            institution: q.institution || q.doc_title || 'Prova',
+            year: q.doc_year || 0,
             area: q.area || 'Geral',
-            difficulty: q.difficulty || 'Media',
-            question_text: q.stem,
-            option_a: q.option_a,
-            option_b: q.option_b,
-            option_c: q.option_c,
-            option_d: q.option_d,
-            option_e: q.option_e,
+            subarea: q.subarea || '',
+            difficulty: 'Média', // Column doesn't exist in DB, use default
+            question_text: cleanStem(q.stem),
+            option_a: q.option_a || '',
+            option_b: q.option_b || '',
+            option_c: q.option_c || '',
+            option_d: q.option_d || '',
+            option_e: q.option_e || null,
             correct_answer: q.correct_option,
-            explanation: q.explanation
+            explanation: q.explanation || 'Explicação não disponível para esta questão.',
         }));
 
-        // 3. Get Answers
+        // 4. Get existing answers
         const { rows: answers } = await query('SELECT * FROM attempt_answers WHERE attempt_id = $1', [attemptId]);
 
         return {
             success: true,
-            data: {
+            data: JSON.parse(JSON.stringify({
                 attempt,
                 questions: mappedQuestions,
                 answers: answers.map(a => ({
-                    question_id: a.question_id || questions[a.question_index]?.id, // fallback approach
+                    question_id: a.question_id,
                     user_answer: a.choice,
-                    flagged: a.flagged
+                    flagged: a.flagged || false,
                 }))
-            }
+            }))
         };
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error fetching quiz data:', error);
-        return { success: false, error: 'Failed to load quiz' };
+        return { success: false, error: `Failed to load quiz: ${error.message}` };
     }
+}
+
+/**
+ * Clean stem text — remove PDF extraction artifacts (page numbers, headers).
+ */
+function cleanStem(stem: string | null): string {
+    if (!stem) return 'Questão sem enunciado';
+
+    let cleaned = stem;
+
+    // Remove leading garbage: sequences of numbers/dots/ellipsis before question number
+    // e.g. "2 2023 ... 31 2024 ... 57   1)Assinale..."
+    cleaned = cleaned.replace(/^[\d\s.…]+(?=\d+\))/m, '');
+
+    // Remove leading question number "1)" or "57)"
+    cleaned = cleaned.replace(/^\s*\d+\)\s*/, '');
+
+    // Trim
+    cleaned = cleaned.trim();
+
+    return cleaned || 'Questão sem enunciado';
 }
 
 export async function saveAnswerAction(attemptId: string, questionId: string, answer: string, isCorrect: boolean, questionIndex: number) {
@@ -122,7 +160,6 @@ export async function saveAnswerAction(attemptId: string, questionId: string, an
 
 export async function finishQuizAction(attemptId: string, stats: any) {
     try {
-        // Get user_id and config from attempt before updating
         const { rows: attemptRows } = await query('SELECT user_id, config FROM attempts WHERE id = $1', [attemptId]);
         const userId = attemptRows[0]?.user_id;
         const config = attemptRows[0]?.config || {};
@@ -137,26 +174,34 @@ export async function finishQuizAction(attemptId: string, stats: any) {
             WHERE id = $1
         `, [attemptId, stats.correctCount, stats.percentage, stats.timeSpent]);
 
-        // Log study time automatically
+        // Log study time (wrapped in try/catch so it doesn't crash the quiz)
         if (userId && stats.timeSpent > 0) {
-            const { logStudyTime } = await import('@/lib/study-time-service');
-            await logStudyTime(userId, 'quiz', stats.timeSpent, {
-                attemptId,
-                percentage: stats.percentage,
-                correctCount: stats.correctCount,
-            });
+            try {
+                const { logStudyTime } = await import('@/lib/study-time-service');
+                await logStudyTime(userId, 'quiz', stats.timeSpent, {
+                    attemptId,
+                    percentage: stats.percentage,
+                    correctCount: stats.correctCount,
+                });
+            } catch (e) {
+                console.warn('Failed to log study time:', e);
+            }
         }
 
-        // Schedule spaced reviews for the quiz area
+        // Schedule spaced reviews
         if (userId && config.area && config.area !== 'todas') {
-            const { scheduleSpacedReviews } = await import('@/lib/spaced-review-service');
-            const todayStr = new Date().toLocaleDateString('en-CA');
-            await scheduleSpacedReviews({
-                userId,
-                area: config.area,
-                completedDate: todayStr,
-                sourceType: 'quiz',
-            });
+            try {
+                const { scheduleSpacedReviews } = await import('@/lib/spaced-review-service');
+                const todayStr = new Date().toLocaleDateString('en-CA');
+                await scheduleSpacedReviews({
+                    userId,
+                    area: config.area,
+                    completedDate: todayStr,
+                    sourceType: 'quiz',
+                });
+            } catch (e) {
+                console.warn('Failed to schedule reviews:', e);
+            }
         }
 
         return { success: true };
