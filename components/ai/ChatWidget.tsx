@@ -19,7 +19,7 @@ export function ChatWidget() {
     const { user } = useUser();
 
     // Migrated to useChat for standard Chat Completions / Responses API
-    const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
+    const { messages, input, handleInputChange, handleSubmit, isLoading, setMessages } = useChat({
         api: '/api/chat',
         initialMessages: [
             {
@@ -27,7 +27,26 @@ export function ChatWidget() {
                 role: 'assistant',
                 content: 'Olá! Sou seu tutor pessoal. Analiso seus PDFs e tiro dúvidas sobre residência médica.'
             }
-        ]
+        ],
+        onError(error) {
+            console.error('Chat error:', error);
+            const errorMsg = {
+                id: `error-${Date.now()}`,
+                role: 'assistant' as const,
+                content: `❌ ${error.message || 'Erro ao conectar com o tutor. Verifique sua conexão e tente novamente.'}`
+            };
+            setMessages([...messages, errorMsg]);
+        },
+        async onResponse(response) {
+            if (!response.ok) {
+                try {
+                    const data = await response.json();
+                    throw new Error(data.error || `Erro ${response.status}`);
+                } catch (e: any) {
+                    throw new Error(e.message || `Erro ${response.status}: Falha na resposta do servidor`);
+                }
+            }
+        }
     });
 
     // Track chat session time

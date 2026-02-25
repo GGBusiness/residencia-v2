@@ -1,4 +1,3 @@
-import { OpenAIStream, StreamingTextResponse } from 'ai';
 import OpenAI from 'openai';
 import { aiService } from '@/lib/ai-service';
 import { memoryService } from '@/lib/memory-service';
@@ -32,7 +31,7 @@ export async function POST(req: Request) {
 
                 // Get user profile for notas de corte
                 const { rows: profiles } = await query(
-                    `SELECT target_institution, target_specialty FROM user_profiles WHERE id = $1 LIMIT 1`,
+                    `SELECT target_institution, target_specialty FROM user_profiles WHERE user_id = $1 LIMIT 1`,
                     [session.user.id]
                 );
                 if (profiles.length > 0) {
@@ -113,7 +112,8 @@ export async function POST(req: Request) {
             ? `${baseSystemInstruction}\n\n### CONTEÚDO DE APOIO (Provas e Materiais Indexados):\n${knowledgeContext}`
             : baseSystemInstruction;
 
-        // 5. Call OpenAI with Context
+        // 5. Call OpenAI with Context (native streaming for openai v6+)
+        console.log(`🤖 Calling ${GPT_MODEL}...`);
         const response = await openai.chat.completions.create({
             model: GPT_MODEL,
             messages: [
@@ -123,23 +123,81 @@ export async function POST(req: Request) {
             stream: true,
         });
 
-        // 6. Stream response with Memory Analysis (Agent Observer)
-        const stream = OpenAIStream(response as any, {
-            onFinal(completion) {
-                // Background Task: Analyze conversation for new memories
-                // Only if we have a valid user
-                supabase.auth.getSession().then(({ data: { session } }) => {
-                    if (session?.user?.id) {
-                        console.log('🕵️ [Observer] Analyzing detailed interaction...');
-                        memoryService.analyzeAndSaveMemory(session.user.id, userQuery, completion);
+        // 6. Stream response using native ReadableStream (compatible with ai/react useChat)
+        let fullCompletion = '';
+        let tokensIn = 0;
+        let tokensOut = 0;
+
+        const encoder = new TextEncoder();
+        const readableStream = new ReadableStream({
+            async start(controller) {
+                try {
+                    for await (const chunk of response) {
+                        const content = chunk.choices[0]?.delta?.content || '';
+                        if (content) {
+                            fullCompletion += content;
+                            tokensOut++;
+                            // SSE format expected by useChat from ai/react
+                            const sseMessage = `data: ${JSON.stringify({ id: chunk.id, object: 'chat.completion.chunk', choices: [{ delta: { content }, index: 0 }] })}\n\n`;
+                            controller.enqueue(encoder.encode(sseMessage));
+                        }
                     }
-                });
+                    controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                    controller.close();
+
+                    // Background: Save memory + log API cost
+                    tokensIn = Math.round(finalSystemInstruction.length / 4);
+                    try {
+                        await query(`
+                            INSERT INTO api_usage_logs (provider, model, tokens_input, tokens_output, cost_usd, action, created_at)
+                            VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                        `, [
+                            'openai',
+                            GPT_MODEL,
+                            tokensIn,
+                            tokensOut,
+                            ((tokensIn * 0.000005) + (tokensOut * 0.000015)).toFixed(6), // GPT-4o pricing approx
+                            'chat'
+                        ]);
+                        console.log(`💰 API cost logged: ~$${((tokensIn * 0.000005) + (tokensOut * 0.000015)).toFixed(6)}`);
+                    } catch (logErr) {
+                        console.error('⚠️ Failed to log API cost (non-fatal):', logErr);
+                    }
+
+                    // Background: Analyze conversation for new memories
+                    supabase.auth.getSession().then(({ data: { session } }) => {
+                        if (session?.user?.id) {
+                            console.log('🕵️ [Observer] Analyzing detailed interaction...');
+                            memoryService.analyzeAndSaveMemory(session.user.id, userQuery, fullCompletion);
+                        }
+                    });
+                } catch (streamErr) {
+                    console.error('❌ Stream error:', streamErr);
+                    const errorMsg = `data: ${JSON.stringify({ error: 'Stream interrupted' })}\n\n`;
+                    controller.enqueue(encoder.encode(errorMsg));
+                    controller.close();
+                }
             }
         });
-        return new StreamingTextResponse(stream);
 
-    } catch (error) {
+        return new Response(readableStream, {
+            headers: {
+                'Content-Type': 'text/event-stream',
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
+            },
+        });
+
+    } catch (error: any) {
         console.error('❌ Error in chat API:', error);
-        return new Response(JSON.stringify({ error: 'Failed to process chat request' }), { status: 500 });
+        const errorMessage = error?.message?.includes('Incorrect API key')
+            ? 'Chave da API OpenAI inválida ou sem créditos.'
+            : error?.message?.includes('insufficient_quota')
+                ? '⚠️ Créditos da API OpenAI acabaram! Recarregue em platform.openai.com'
+                : `Erro no chat: ${error?.message || 'Falha desconhecida'}`;
+        return new Response(JSON.stringify({ error: errorMessage }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
     }
 }
