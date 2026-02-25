@@ -129,10 +129,10 @@ export default function HistoricoPage() {
                         const createdAt = new Date(attempt.started_at);
                         const isCompleted = attempt.status === 'COMPLETED';
 
-                        // Use stats saved by finishQuizAction
-                        const correctCount = attempt.correct_answers || 0;
-                        const totalCount = attempt.total_questions || config.questionCount || 0;
-                        const percentage = attempt.percentage || (totalCount > 0 ? (correctCount / totalCount) * 100 : 0);
+                        // Use stats saved by finishQuizAction (parse as numbers since JSON serialization may return strings)
+                        const correctCount = Number(attempt.correct_answers) || 0;
+                        const totalCount = Number(attempt.total_questions) || Number(config.questionCount) || 0;
+                        const percentage = Number(attempt.percentage) || (totalCount > 0 ? (correctCount / totalCount) * 100 : 0);
 
                         return (
                             <Card key={attempt.id} hover>
@@ -198,7 +198,7 @@ export default function HistoricoPage() {
                                                     <div className="grid grid-cols-3 gap-4">
                                                         <div className="text-center">
                                                             <p className="text-3xl font-bold text-primary-600">
-                                                                {percentage.toFixed(0)}%
+                                                                {Math.round(percentage)}%
                                                             </p>
                                                             <p className="text-xs text-gray-600">Aproveitamento</p>
                                                         </div>
