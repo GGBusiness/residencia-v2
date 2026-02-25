@@ -20,6 +20,10 @@ const PRICING: Record<string, { input: number; output: number }> = {
     'gpt-3.5-turbo': { input: 0.0005, output: 0.0015 },
     'gpt-4-turbo': { input: 0.01, output: 0.03 },
     'gpt-4o': { input: 0.005, output: 0.015 },
+    'gpt-4o-mini': { input: 0.00015, output: 0.0006 },
+    'gpt-4.1': { input: 0.002, output: 0.008 },
+    'gpt-4.1-mini': { input: 0.0004, output: 0.0016 },
+    'gpt-5.2': { input: 0.01, output: 0.03 },
     'text-embedding-3-small': { input: 0.00002, output: 0 },
 };
 

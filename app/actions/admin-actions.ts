@@ -138,3 +138,113 @@ export async function getAdminCostsAction() {
         return { success: false, error: error.message };
     }
 }
+
+// === VERIFICAÇÃO DE SINCRONIZAÇÃO DO BANCO ===
+export async function verifyDbSyncAction() {
+    console.log('🔍 [DB-SYNC] Iniciando verificação de integridade...');
+    const issues: string[] = [];
+    const fixes: string[] = [];
+
+    try {
+        // 1. Questões órfãs (sem documento associado)
+        const { rows: orphanedQuestions } = await query(`
+            SELECT q.id, q.stem FROM questions q
+            LEFT JOIN documents d ON q.document_id = d.id
+            WHERE d.id IS NULL
+        `);
+        if (orphanedQuestions.length > 0) {
+            issues.push(`${orphanedQuestions.length} questões órfãs (sem documento)`);
+            // Auto-fix: deletar questões órfãs
+            await query(`
+                DELETE FROM questions WHERE id IN (
+                    SELECT q.id FROM questions q
+                    LEFT JOIN documents d ON q.document_id = d.id
+                    WHERE d.id IS NULL
+                )
+            `);
+            fixes.push(`Deletadas ${orphanedQuestions.length} questões órfãs`);
+        }
+
+        // 2. Embeddings órfãos (sem documento)
+        const { rows: orphanedEmbeddings } = await query(`
+            SELECT de.id FROM document_embeddings de
+            LEFT JOIN documents d ON de.document_id = d.id
+            WHERE d.id IS NULL
+        `);
+        if (orphanedEmbeddings.length > 0) {
+            issues.push(`${orphanedEmbeddings.length} embeddings órfãos (sem documento)`);
+            await query(`
+                DELETE FROM document_embeddings WHERE id IN (
+                    SELECT de.id FROM document_embeddings de
+                    LEFT JOIN documents d ON de.document_id = d.id
+                    WHERE d.id IS NULL
+                )
+            `);
+            fixes.push(`Deletados ${orphanedEmbeddings.length} embeddings órfãos`);
+        }
+
+        // 3. Documentos sem questões nem embeddings
+        const { rows: emptyDocs } = await query(`
+            SELECT d.id, d.title FROM documents d
+            WHERE NOT EXISTS (SELECT 1 FROM questions q WHERE q.document_id = d.id)
+              AND NOT EXISTS (SELECT 1 FROM document_embeddings de WHERE de.document_id = d.id)
+        `);
+        if (emptyDocs.length > 0) {
+            issues.push(`${emptyDocs.length} documentos vazios (sem questões/embeddings)`);
+            await query(`
+                DELETE FROM documents WHERE id IN (
+                    SELECT d.id FROM documents d
+                    WHERE NOT EXISTS (SELECT 1 FROM questions q WHERE q.document_id = d.id)
+                      AND NOT EXISTS (SELECT 1 FROM document_embeddings de WHERE de.document_id = d.id)
+                )
+            `);
+            fixes.push(`Deletados ${emptyDocs.length} documentos vazios`);
+        }
+
+        // 4. Questões com problemas de qualidade
+        const { rows: badQuestions } = await query(`
+            SELECT id, stem, option_a, option_b, option_c, option_d, option_e
+            FROM questions
+            WHERE LENGTH(stem) < 30
+               OR option_a IS NULL OR option_b IS NULL OR option_c IS NULL OR option_d IS NULL
+               OR LOWER(option_a) = LOWER(option_b) OR LOWER(option_a) = LOWER(option_c)
+               OR LOWER(option_b) = LOWER(option_c) OR LOWER(option_a) = LOWER(option_d)
+               OR LOWER(option_b) = LOWER(option_d) OR LOWER(option_c) = LOWER(option_d)
+        `);
+        if (badQuestions.length > 0) {
+            issues.push(`${badQuestions.length} questões com problemas de qualidade (enunciado curto ou alternativas idênticas)`);
+        }
+
+        // 5. Contagens gerais
+        const { rows: [counts] } = await query(`
+            SELECT
+                (SELECT COUNT(*) FROM documents) as docs,
+                (SELECT COUNT(*) FROM questions) as questions,
+                (SELECT COUNT(*) FROM document_embeddings) as embeddings,
+                (SELECT COUNT(*) FROM profiles) as users
+        `);
+
+        const summary = {
+            documents: parseInt(counts.docs),
+            questions: parseInt(counts.questions),
+            embeddings: parseInt(counts.embeddings),
+            users: parseInt(counts.users),
+        };
+
+        console.log(`✅ [DB-SYNC] Verificação concluída. Issues: ${issues.length}, Fixes: ${fixes.length}`);
+
+        return {
+            success: true,
+            healthy: issues.length === 0 && fixes.length === 0,
+            summary,
+            issues,
+            fixes,
+            badQuestionsCount: badQuestions.length,
+        };
+
+    } catch (error: any) {
+        console.error('❌ [DB-SYNC] Erro:', error.message);
+        return { success: false, error: error.message };
+    }
+}
+

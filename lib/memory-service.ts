@@ -100,6 +100,7 @@ class MemoryService {
             if (userMessage.length < 10) return;
 
             const OpenAI = (await import('openai')).default;
+            const { GPT_MODEL } = await import('@/lib/model-config');
             const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
             const extractionPrompt = `
@@ -126,7 +127,7 @@ class MemoryService {
             `.trim();
 
             const completion = await openai.chat.completions.create({
-                model: 'gpt-4o',
+                model: GPT_MODEL,
                 messages: [{ role: 'system', content: extractionPrompt }],
                 response_format: { type: "json_object" }
             });

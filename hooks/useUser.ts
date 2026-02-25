@@ -44,9 +44,9 @@ export function useUser() {
             // Helper para data
             const circleDate = (d: string) => d || new Date().toISOString();
 
-            // Timeout de 5 segundos
-            const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Timeout loading user')), 5000)
+            // Timeout de 10 segundos (resolve com fallback em vez de rejeitar)
+            const timeoutPromise = new Promise((resolve) =>
+                setTimeout(() => resolve({ success: false, error: 'timeout' }), 10000)
             );
 
             // 1. Obter usuário do Supabase Auth

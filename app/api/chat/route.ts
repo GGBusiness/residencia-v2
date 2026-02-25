@@ -2,6 +2,7 @@ import { OpenAIStream, StreamingTextResponse } from 'ai';
 import OpenAI from 'openai';
 import { aiService } from '@/lib/ai-service';
 import { memoryService } from '@/lib/memory-service';
+import { GPT_MODEL } from '@/lib/model-config';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 
@@ -66,7 +67,7 @@ export async function POST(req: Request) {
             ### DIRETRIZES:
             1. Personalize a resposta: Se o aluno for fraco em um tema, explique do zero. Se for forte, aprofunde.
             2. Se o "CONTEÚDO DE APOIO" for citado abaixo, USE-O como fonte primária.
-            3. Se não houver contexto, use seu conhecimento médico (GPT-4o).
+            3. Se não houver contexto, use seu conhecimento médico.
             4. Sempre termine encorajando ou sugerindo uma próxima pergunta relacionada ao ponto fraco do aluno.
         `.trim();
 
@@ -76,7 +77,7 @@ export async function POST(req: Request) {
 
         // 5. Call OpenAI with Context
         const response = await openai.chat.completions.create({
-            model: 'gpt-4o',
+            model: GPT_MODEL,
             messages: [
                 { role: 'system', content: finalSystemInstruction },
                 ...messages
