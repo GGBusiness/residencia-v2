@@ -74,8 +74,53 @@ export async function getQuizDataAction(attemptId: string): Promise<{ success: b
             questions = rows;
         }
 
-        // Limit to requested count
+        // AI FALLBACK: Generate missing questions when DB doesn't have enough
         const limit = config.questionCount || 20;
+        if (questions.length < limit) {
+            const missing = limit - questions.length;
+            console.log(`[getQuizDataAction] 🤖 AI Fallback: need ${missing} more questions (have ${questions.length}/${limit})`);
+
+            try {
+                const { aiService } = await import('@/lib/ai-service');
+                const aiQuestions = await aiService.generateQuestions({
+                    area: config.area || 'Clínica Médica',
+                    count: missing,
+                    difficulty: config.difficulty,
+                    subareas: config.subareas,
+                });
+
+                if (aiQuestions.length > 0) {
+                    console.log(`[getQuizDataAction] ✅ AI generated ${aiQuestions.length} questions`);
+                    // Map AI questions to same format as DB questions
+                    const aiMapped = aiQuestions.map((q: any, i: number) => ({
+                        id: `ai-${Date.now()}-${i}`,
+                        document_id: null,
+                        number_in_exam: questions.length + i + 1,
+                        stem: q.stem,
+                        option_a: q.option_a,
+                        option_b: q.option_b,
+                        option_c: q.option_c,
+                        option_d: q.option_d,
+                        option_e: q.option_e || null,
+                        correct_option: q.correct_option,
+                        explanation: q.explanation + (q.ai_source ? `\n\n📚 Fonte: ${q.ai_source}` : ''),
+                        area: q.area,
+                        subarea: q.subarea || '',
+                        topic: q.topic || '',
+                        doc_title: '🤖 Questão Gerada por IA',
+                        institution: q.ai_source || 'IA',
+                        doc_year: new Date().getFullYear(),
+                        ai_generated: true,
+                    }));
+                    questions = [...questions, ...aiMapped];
+                }
+            } catch (aiErr) {
+                console.error('[getQuizDataAction] ❌ AI generation failed:', aiErr);
+                // Continue with whatever questions we have
+            }
+        }
+
+        // Limit to requested count
         if (questions.length > limit) {
             questions = questions.slice(0, limit);
         }
@@ -216,6 +261,10 @@ function shuffleOptions(options: { key: string; text: string }[]): { key: string
 
 export async function saveAnswerAction(attemptId: string, questionId: string, answer: string, isCorrect: boolean, questionIndex: number) {
     try {
+        // AI-generated questions have IDs like "ai-123456-0" — not valid UUIDs
+        const isAiQuestion = questionId.startsWith('ai-');
+        const dbQuestionId = isAiQuestion ? null : questionId;
+
         await query(`
              INSERT INTO attempt_answers (attempt_id, question_id, choice, is_correct, question_index, created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
@@ -223,7 +272,7 @@ export async function saveAnswerAction(attemptId: string, questionId: string, an
              SET choice = EXCLUDED.choice,
                  is_correct = EXCLUDED.is_correct,
                  updated_at = NOW()
-        `, [attemptId, questionId, answer, isCorrect, questionIndex]);
+        `, [attemptId, dbQuestionId, answer, isCorrect, questionIndex]);
         return { success: true };
     } catch (error) {
         console.error('Save Answer Error', error);

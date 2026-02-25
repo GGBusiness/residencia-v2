@@ -56,7 +56,7 @@ export async function createFullExamAction(req: ExamRequest): Promise<ExamResult
 
             // Check notas de corte for extra priority
             const { rows: profile } = await query(
-                `SELECT target_institution, target_specialty FROM user_profiles WHERE id = $1 LIMIT 1`,
+                `SELECT target_institution, target_specialty FROM user_profiles WHERE user_id = $1 LIMIT 1`,
                 [req.userId]
             );
             if (profile.length > 0 && profile[0].target_institution) {
@@ -143,7 +143,10 @@ export async function createFullExamAction(req: ExamRequest): Promise<ExamResult
 
             if (!rows || rows.length === 0) {
                 if (documentIds.length === 0) {
-                    return { success: false, error: 'Nenhuma prova encontrada com esses critérios.', errorStep: 'select' };
+                    // No documents found — OK, AI will generate questions in quiz-actions
+                    console.log('[createFullExam] No DB documents matched — AI will generate questions');
+                    aiInsight += aiInsight ? ' ' : '';
+                    aiInsight += '🤖 Sem questões no banco para esses critérios. A IA vai gerar questões baseadas no conteúdo indexado.';
                 }
             } else {
                 const remaining = (req.questionCount <= 30 ? 2 : req.questionCount <= 50 ? 3 : 5) - documentIds.length;
