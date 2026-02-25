@@ -33,7 +33,7 @@ export default function HistoricoPage() {
                 .from('attempts')
                 .select('*')
                 .eq('user_id', user.id)
-                .order('created_at', { ascending: false });
+                .order('started_at', { ascending: false });
 
             if (error) throw error;
             setAttempts(data || []);
@@ -128,20 +128,13 @@ export default function HistoricoPage() {
                 <div className="space-y-4">
                     {attempts.map((attempt) => {
                         const config = attempt.config || {};
-                        const createdAt = new Date(attempt.created_at);
+                        const createdAt = new Date(attempt.started_at);
                         const isCompleted = attempt.status === 'COMPLETED';
 
-                        // Calcular estatísticas se completo
-                        let correctCount = 0;
-                        let totalCount = 0;
-                        if (isCompleted && attempt.responses) {
-                            const responses = attempt.responses as any;
-                            Object.values(responses).forEach((resp: any) => {
-                                totalCount++;
-                                if (resp.isCorrect) correctCount++;
-                            });
-                        }
-                        const percentage = totalCount > 0 ? (correctCount / totalCount) * 100 : 0;
+                        // Use stats saved by finishQuizAction
+                        const correctCount = attempt.correct_answers || 0;
+                        const totalCount = attempt.total_questions || config.questionCount || 0;
+                        const percentage = attempt.percentage || (totalCount > 0 ? (correctCount / totalCount) * 100 : 0);
 
                         return (
                             <Card key={attempt.id} hover>
@@ -198,7 +191,7 @@ export default function HistoricoPage() {
                                             </div>
 
                                             {/* Resultado (se concluído) */}
-                                            {isCompleted && totalCount > 0 && (
+                                            {isCompleted && (
                                                 <div className="bg-gradient-to-r from-primary-50 to-purple-50 rounded-lg p-4">
                                                     <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
                                                         <Award className="w-4 h-4" />
@@ -231,7 +224,7 @@ export default function HistoricoPage() {
                                         <Button
                                             variant={isCompleted ? "outline" : "primary"}
                                             size="sm"
-                                            onClick={() => router.push(`/app/prova/${attempt.id}`)}
+                                            onClick={() => router.push(`/app/quiz/${attempt.id}`)}
                                         >
                                             <Eye className="w-4 h-4 mr-2" />
                                             {isCompleted ? 'Revisar Prova' : 'Continuar'}
