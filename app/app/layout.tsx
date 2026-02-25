@@ -13,8 +13,7 @@ export default function AppRootLayout({
     const pathname = usePathname();
     const router = useRouter();
 
-    // Verify deployment
-    console.log('App Layout Loaded - Version: ProfileHub + StrictFilters');
+
 
     const menuItems = [
         { id: 'inicio', label: 'Início', icon: Home, path: '/app' },

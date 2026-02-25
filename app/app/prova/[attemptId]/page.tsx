@@ -6,16 +6,15 @@ import { ArrowLeft, FileText, CheckCircle2, Circle, ExternalLink, Download } fro
 import { Card, CardBody } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { dataService, type Attempt, type Document } from '@/lib/data-service';
-import { supabase } from '@/lib/supabase';
+import { getAttemptWithDocumentsAction } from '@/app/actions/prova-actions';
 
 export default function ProvaPage() {
     const params = useParams();
     const router = useRouter();
     const attemptId = params.attemptId as string;
 
-    const [attempt, setAttempt] = useState<Attempt | null>(null);
-    const [documents, setDocuments] = useState<Document[]>([]);
+    const [attempt, setAttempt] = useState<any>(null);
+    const [documents, setDocuments] = useState<any[]>([]);
     const [completedDocs, setCompletedDocs] = useState<Set<string>>(new Set());
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -28,30 +27,14 @@ export default function ProvaPage() {
         try {
             setLoading(true);
 
-            // Buscar attempt
-            const { data: attemptData, error: attemptError } = await supabase
-                .from('attempts')
-                .select('*')
-                .eq('id', attemptId)
-                .single();
+            const result = await getAttemptWithDocumentsAction(attemptId);
 
-            if (attemptError) throw attemptError;
-
-            const fetchedAttempt = attemptData as Attempt;
-            setAttempt(fetchedAttempt);
-
-            // Buscar documentos
-            const documentIds = fetchedAttempt.config?.documentIds || [];
-
-            if (documentIds.length > 0) {
-                const { data: docs, error: docsError } = await supabase
-                    .from('documents')
-                    .select('*')
-                    .in('id', documentIds);
-
-                if (docsError) throw docsError;
-                setDocuments(docs as Document[]);
+            if (!result.success) {
+                throw new Error(result.error || 'Prova não encontrada');
             }
+
+            setAttempt(result.data!.attempt);
+            setDocuments(result.data!.documents || []);
 
             // Buscar progresso (documentos completados)
             const saved = localStorage.getItem(`attempt-${attemptId}-progress`);

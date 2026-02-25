@@ -8,7 +8,7 @@ import { PlannerStats } from '@/components/planner/PlannerStats';
 import { Card, CardBody } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/lib/supabase';
+import { getStudyEventsAction, createStudyEventAction, toggleEventCompleteAction, deleteStudyEventAction } from '@/app/actions/planner-data-actions';
 import { useUser } from '@/hooks/useUser';
 import { generateScheduleAction } from '@/app/actions/planner-actions';
 import { scheduleSpacedReviewsAction } from '@/app/actions/spaced-review-actions';
@@ -102,16 +102,8 @@ export default function PlannerPage() {
         if (!user?.id) return;
         try {
             setLoading(true);
-            const { data, error } = await supabase
-                .from('study_events')
-                .select('*')
-                .eq('user_id', user.id)
-                .order('date', { ascending: true })
-                .order('start_time', { ascending: true });
-
-            if (error) throw error;
-
-            const loadedEvents = (data || []) as StudyEvent[];
+            const result = await getStudyEventsAction(user.id);
+            const loadedEvents = (result.data || []) as StudyEvent[];
 
             // Detect missed sessions (overdue + not completed)
             const today = new Date().toLocaleDateString('en-CA');
@@ -128,19 +120,14 @@ export default function PlannerPage() {
                 console.log('📅 [Planner] No future events found — auto-generating...');
                 setAutoGenerating(true);
                 try {
-                    const result = await generateScheduleAction(user.id, today);
-                    if (result.success) {
+                    const genResult = await generateScheduleAction(user.id, today);
+                    if (genResult.success) {
                         console.log('✅ [Planner] Auto-generated schedule successfully');
                         // Reload events
-                        const { data: newData } = await supabase
-                            .from('study_events')
-                            .select('*')
-                            .eq('user_id', user.id)
-                            .order('date', { ascending: true })
-                            .order('start_time', { ascending: true });
-                        setEvents((newData || []) as StudyEvent[]);
+                        const reloadResult = await getStudyEventsAction(user.id);
+                        setEvents((reloadResult.data || []) as StudyEvent[]);
                     } else {
-                        console.error('❌ [Planner] Auto-generate failed:', result.error);
+                        console.error('❌ [Planner] Auto-generate failed:', genResult.error);
                         setEvents(loadedEvents);
                     }
                 } catch (genError) {
@@ -161,14 +148,9 @@ export default function PlannerPage() {
 
     const handleCreateEvent = async () => {
         try {
-            const { error } = await supabase
-                .from('study_events')
-                .insert([{
-                    ...formData,
-                    user_id: user?.id,
-                }]);
-
-            if (error) throw error;
+            if (!user?.id) return;
+            const result = await createStudyEventAction(user.id, formData);
+            if (!result.success) throw new Error(result.error);
 
             await loadEventsAndAutoGenerate();
             setShowForm(false);
@@ -189,12 +171,8 @@ export default function PlannerPage() {
 
     const toggleComplete = async (eventId: string, currentStatus: boolean) => {
         try {
-            const { error } = await supabase
-                .from('study_events')
-                .update({ completed: !currentStatus })
-                .eq('id', eventId);
-
-            if (error) throw error;
+            const result = await toggleEventCompleteAction(eventId, !currentStatus);
+            if (!result.success) throw new Error(result.error);
 
             // Schedule spaced reviews when marking a STUDY event as completed
             if (!currentStatus && user?.id) {
@@ -221,12 +199,8 @@ export default function PlannerPage() {
             'Deseja realmente remover esta sessão de estudo?',
             async () => {
                 try {
-                    const { error } = await supabase
-                        .from('study_events')
-                        .delete()
-                        .eq('id', eventId);
-
-                    if (error) throw error;
+                    const result = await deleteStudyEventAction(eventId);
+                    if (!result.success) throw new Error(result.error);
                     await loadEventsAndAutoGenerate();
                 } catch (error) {
                     console.error('Error deleting event:', error);

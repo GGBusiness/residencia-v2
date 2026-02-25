@@ -7,7 +7,7 @@ import { Card, CardBody } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { type UserStats } from '@/lib/stats-utils';
 import { getUserStatsAction } from '@/app/actions/user-actions';
-import { supabase } from '@/lib/supabase';
+import { getCutScoresAction } from '@/app/actions/stats-data-actions';
 import { useUser } from '@/hooks/useUser';
 
 export default function MetasPage() {
@@ -35,13 +35,8 @@ export default function MetasPage() {
                 setStats(result.data);
             }
 
-            const { data: scores } = await supabase
-                .from('cut_scores')
-                .select('*')
-                .order('institution', { ascending: true })
-                .order('area', { ascending: true });
-
-            setCutScores(scores || []);
+            const scoresResult = await getCutScoresAction();
+            setCutScores(scoresResult.data || []);
         } catch (error) {
             console.error('Error loading metas:', error);
         } finally {

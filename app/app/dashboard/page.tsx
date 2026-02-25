@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { generateRecommendations, type UserStats } from '@/lib/stats-utils';
 import { getUserStatsAction } from '@/app/actions/user-actions';
-import { supabase } from '@/lib/supabase';
+import { getCutScoresAction } from '@/app/actions/stats-data-actions';
 import { useUser } from '@/hooks/useUser';
 
 interface CutScore {
@@ -46,13 +46,10 @@ export default function DashboardPage() {
             }
 
             // Carregar notas de corte (principais instituições)
-            const { data: scores } = await supabase
-                .from('cut_scores')
-                .select('*')
-                .in('institution', ['ENARE', 'USP', 'UNICAMP'])
-                .order('percentage', { ascending: false });
+            const scoresResult = await getCutScoresAction(['ENARE', 'USP', 'UNICAMP']);
+            const scores = scoresResult.data || [];
 
-            if (scores) {
+            if (scores.length > 0) {
                 setCutScores(scores as CutScore[]);
 
                 // Gerar recomendações

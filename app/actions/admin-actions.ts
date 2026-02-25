@@ -30,38 +30,38 @@ export async function setupAdminSchemaAction() {
 
 export async function getAdminStatsAction() {
     try {
-        // 1. Basic Counts — ALL from DigitalOcean
+        // 1. Basic Counts — ALL from DigitalOcean (profiles table, not users which is in Supabase Auth)
         const { rows: [{ count: userCount }] } = await query(
-            "SELECT COUNT(*) as count FROM users"
-        );
+            "SELECT COUNT(*) as count FROM profiles"
+        ).catch(() => ({ rows: [{ count: 0 }] }));
 
         // 2. New Users Today
         const today = new Date().toISOString().split('T')[0];
         const { rows: [{ count: newUsersToday }] } = await query(
-            "SELECT COUNT(*) as count FROM users WHERE created_at >= $1",
+            "SELECT COUNT(*) as count FROM profiles WHERE created_at >= $1",
             [today]
-        );
+        ).catch(() => ({ rows: [{ count: 0 }] }));
 
         // 3. Activity Today (Attempts)
         const { rows: [{ count: attemptsToday }] } = await query(
             "SELECT COUNT(*) as count FROM attempts WHERE started_at >= $1",
             [today]
-        );
+        ).catch(() => ({ rows: [{ count: 0 }] }));
 
         // 4. Content Stats
         const { rows: [{ count: totalQuestions }] } = await query(
             "SELECT COUNT(*) as count FROM questions"
-        );
+        ).catch(() => ({ rows: [{ count: 0 }] }));
 
         // 5. Documents Stats
         const { rows: [{ count: totalDocuments }] } = await query(
             "SELECT COUNT(*) as count FROM documents"
-        );
+        ).catch(() => ({ rows: [{ count: 0 }] }));
 
         // 6. Embeddings Stats
         const { rows: [{ count: totalEmbeddings }] } = await query(
             "SELECT COUNT(*) as count FROM document_embeddings"
-        );
+        ).catch(() => ({ rows: [{ count: 0 }] }));
 
         // 7. Top Institutions
         const { rows: topInstitutions } = await query(`
