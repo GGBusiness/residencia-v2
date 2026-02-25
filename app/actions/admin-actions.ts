@@ -63,6 +63,11 @@ export async function getAdminStatsAction() {
             "SELECT COUNT(*) as count FROM document_embeddings"
         ).catch(() => ({ rows: [{ count: 0 }] }));
 
+        // 6b. AI-Generated Questions Count
+        const { rows: [{ count: aiQuestionsCount }] } = await query(
+            "SELECT COUNT(*) as count FROM questions q JOIN documents d ON q.document_id = d.id WHERE d.title = 'AI-Generated Questions'"
+        ).catch(() => ({ rows: [{ count: 0 }] }));
+
         // 7. Top Institutions
         const { rows: topInstitutions } = await query(`
             SELECT institution as name, COUNT(*) as usage_count
@@ -99,6 +104,7 @@ export async function getAdminStatsAction() {
                 activity: { attemptsToday: parseInt(attemptsToday) },
                 content: {
                     totalQuestions: parseInt(totalQuestions),
+                    aiQuestions: parseInt(aiQuestionsCount),
                     totalDocuments: parseInt(totalDocuments),
                     totalEmbeddings: parseInt(totalEmbeddings)
                 },

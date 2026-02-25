@@ -74,49 +74,150 @@ export async function getQuizDataAction(attemptId: string): Promise<{ success: b
             questions = rows;
         }
 
-        // AI FALLBACK: Generate missing questions when DB doesn't have enough
+        // AI FALLBACK: Check saved AI questions first, then generate if still missing
         const limit = config.questionCount || 20;
         if (questions.length < limit) {
             const missing = limit - questions.length;
             console.log(`[getQuizDataAction] 🤖 AI Fallback: need ${missing} more questions (have ${questions.length}/${limit})`);
 
+            // STEP A: Check for previously saved AI questions in DB
             try {
-                const { aiService } = await import('@/lib/ai-service');
-                const aiQuestions = await aiService.generateQuestions({
-                    area: config.area || 'Clínica Médica',
-                    count: missing,
-                    difficulty: config.difficulty,
-                    subareas: config.subareas,
-                });
+                const alreadyUsedIds = questions.map((q: any) => q.id);
+                let aiDbSql = `
+                    SELECT q.id, q.document_id, q.number_in_exam, q.stem,
+                           q.option_a, q.option_b, q.option_c, q.option_d, q.option_e,
+                           q.correct_option, q.explanation, q.area, q.subarea, q.topic,
+                           d.title as doc_title, d.institution, d.year as doc_year
+                    FROM questions q
+                    JOIN documents d ON q.document_id = d.id
+                    WHERE d.title = 'AI-Generated Questions'
+                `;
+                const aiDbParams: any[] = [];
+                let aiPIdx = 1;
 
-                if (aiQuestions.length > 0) {
-                    console.log(`[getQuizDataAction] ✅ AI generated ${aiQuestions.length} questions`);
-                    // Map AI questions to same format as DB questions
-                    const aiMapped = aiQuestions.map((q: any, i: number) => ({
-                        id: `ai-${Date.now()}-${i}`,
-                        document_id: null,
-                        number_in_exam: questions.length + i + 1,
-                        stem: q.stem,
-                        option_a: q.option_a,
-                        option_b: q.option_b,
-                        option_c: q.option_c,
-                        option_d: q.option_d,
-                        option_e: q.option_e || null,
-                        correct_option: q.correct_option,
-                        explanation: q.explanation + (q.ai_source ? `\n\n📚 Fonte: ${q.ai_source}` : ''),
-                        area: q.area,
-                        subarea: q.subarea || '',
-                        topic: q.topic || '',
-                        doc_title: '🤖 Questão Gerada por IA',
-                        institution: q.ai_source || 'IA',
-                        doc_year: new Date().getFullYear(),
-                        ai_generated: true,
-                    }));
-                    questions = [...questions, ...aiMapped];
+                if (config.area && config.area !== 'todas') {
+                    aiDbSql += ` AND q.area = $${aiPIdx}`;
+                    aiDbParams.push(config.area);
+                    aiPIdx++;
                 }
-            } catch (aiErr) {
-                console.error('[getQuizDataAction] ❌ AI generation failed:', aiErr);
-                // Continue with whatever questions we have
+
+                if (alreadyUsedIds.length > 0) {
+                    aiDbSql += ` AND q.id != ALL($${aiPIdx}::uuid[])`;
+                    aiDbParams.push(alreadyUsedIds.filter((id: string) => !id.startsWith?.('ai-')));
+                    aiPIdx++;
+                }
+
+                aiDbSql += ` ORDER BY RANDOM() LIMIT $${aiPIdx}`;
+                aiDbParams.push(missing);
+
+                const { rows: savedAiQuestions } = await query(aiDbSql, aiDbParams);
+                if (savedAiQuestions.length > 0) {
+                    console.log(`[getQuizDataAction] ♻️ Reusing ${savedAiQuestions.length} saved AI questions from DB`);
+                    questions = [...questions, ...savedAiQuestions];
+                }
+            } catch (reuseErr) {
+                console.error('[getQuizDataAction] Reuse check failed (non-fatal):', reuseErr);
+            }
+
+            // STEP B: Still need more? Generate new ones with AI
+            const stillMissing = limit - questions.length;
+            if (stillMissing > 0) {
+                console.log(`[getQuizDataAction] 🧠 Still need ${stillMissing} — generating with AI...`);
+                try {
+                    const { aiService } = await import('@/lib/ai-service');
+                    const aiQuestions = await aiService.generateQuestions({
+                        area: config.area || 'Clínica Médica',
+                        count: stillMissing,
+                        difficulty: config.difficulty,
+                        subareas: config.subareas,
+                    });
+
+                    if (aiQuestions.length > 0) {
+                        console.log(`[getQuizDataAction] ✅ AI generated ${aiQuestions.length} questions — saving to DB...`);
+
+                        // STEP C: Save to DB for future reuse (snowball effect!)
+                        // Ensure an "AI-Generated" document exists
+                        let aiDocId: string;
+                        try {
+                            const { rows: existingDoc } = await query(
+                                `SELECT id FROM documents WHERE title = 'AI-Generated Questions' LIMIT 1`
+                            );
+                            if (existingDoc.length > 0) {
+                                aiDocId = existingDoc[0].id;
+                            } else {
+                                const { rows: newDoc } = await query(`
+                                    INSERT INTO documents (title, type, institution, year, area, created_at)
+                                    VALUES ('AI-Generated Questions', 'AI', 'IA', $1, 'Múltiplas', NOW())
+                                    RETURNING id
+                                `, [new Date().getFullYear()]);
+                                aiDocId = newDoc[0].id;
+                                console.log(`[getQuizDataAction] 📄 Created AI document: ${aiDocId}`);
+                            }
+                        } catch (docErr) {
+                            console.error('[getQuizDataAction] Failed to create AI doc:', docErr);
+                            aiDocId = '';
+                        }
+
+                        const aiMapped = [];
+                        for (let i = 0; i < aiQuestions.length; i++) {
+                            const q = aiQuestions[i];
+                            let savedId = `ai-${Date.now()}-${i}`;
+
+                            // Try to save to DB
+                            if (aiDocId) {
+                                try {
+                                    const { rows: saved } = await query(`
+                                        INSERT INTO questions (document_id, number_in_exam, stem, option_a, option_b, option_c, option_d, option_e, correct_option, explanation, area, subarea, topic, created_at)
+                                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+                                        RETURNING id
+                                    `, [
+                                        aiDocId,
+                                        1000 + i, // High number to avoid conflicts
+                                        q.stem,
+                                        q.option_a,
+                                        q.option_b,
+                                        q.option_c,
+                                        q.option_d,
+                                        q.option_e || null,
+                                        q.correct_option,
+                                        q.explanation + (q.ai_source ? `\n\n📚 Fonte: ${q.ai_source}` : ''),
+                                        q.area,
+                                        q.subarea || null,
+                                        q.topic || null,
+                                    ]);
+                                    savedId = saved[0].id; // Use real DB UUID
+                                    console.log(`[getQuizDataAction] 💾 Saved AI question ${i + 1} → ${savedId}`);
+                                } catch (saveErr) {
+                                    console.error(`[getQuizDataAction] Failed to save Q${i + 1}:`, saveErr);
+                                }
+                            }
+
+                            aiMapped.push({
+                                id: savedId,
+                                document_id: aiDocId || null,
+                                number_in_exam: questions.length + i + 1,
+                                stem: q.stem,
+                                option_a: q.option_a,
+                                option_b: q.option_b,
+                                option_c: q.option_c,
+                                option_d: q.option_d,
+                                option_e: q.option_e || null,
+                                correct_option: q.correct_option,
+                                explanation: q.explanation + (q.ai_source ? `\n\n📚 Fonte: ${q.ai_source}` : ''),
+                                area: q.area,
+                                subarea: q.subarea || '',
+                                topic: q.topic || '',
+                                doc_title: '🤖 Questão Gerada por IA',
+                                institution: q.ai_source || 'IA',
+                                doc_year: new Date().getFullYear(),
+                                ai_generated: true,
+                            });
+                        }
+                        questions = [...questions, ...aiMapped];
+                    }
+                } catch (aiErr) {
+                    console.error('[getQuizDataAction] ❌ AI generation failed:', aiErr);
+                }
             }
         }
 
