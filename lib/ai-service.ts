@@ -53,21 +53,36 @@ export const aiService = {
      * Divide o texto em pedaços (chunks) para indexação.
      */
     chunkText(text: string, maxTokens = 800): string[] {
-        // Estratégia simples de split por parágrafos para não quebrar raciocínio
-        // Melhoria futura: usar biblioteca como 'langchain' para splitting inteligente.
+        const maxChars = maxTokens * 4; // ~4 chars per token
+        const overlap = 150; // 150 chars of overlap between chunks
         const paragraphs = text.split(/\n\s*\n/);
         const chunks: string[] = [];
         let currentChunk = '';
 
         for (const para of paragraphs) {
-            if ((currentChunk.length + para.length) < (maxTokens * 4)) { // Aprox 4 chars por token
+            if ((currentChunk.length + para.length) < maxChars) {
                 currentChunk += para + '\n\n';
             } else {
-                if (currentChunk) chunks.push(currentChunk.trim());
-                currentChunk = para + '\n\n';
+                if (currentChunk) {
+                    chunks.push(currentChunk.trim());
+                    // Keep overlap from end of current chunk
+                    const overlapText = currentChunk.slice(-overlap);
+                    currentChunk = overlapText + '\n\n' + para + '\n\n';
+                } else {
+                    // Paragraph itself is too long, split it
+                    const sentences = para.split(/(?<=[.!?])\s+/);
+                    for (const sentence of sentences) {
+                        if ((currentChunk.length + sentence.length) < maxChars) {
+                            currentChunk += sentence + ' ';
+                        } else {
+                            if (currentChunk) chunks.push(currentChunk.trim());
+                            currentChunk = sentence + ' ';
+                        }
+                    }
+                }
             }
         }
-        if (currentChunk) chunks.push(currentChunk.trim());
+        if (currentChunk.trim()) chunks.push(currentChunk.trim());
 
         return chunks;
     }

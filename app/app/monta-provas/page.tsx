@@ -220,6 +220,10 @@ export default function MontaProvasPage() {
             return;
         }
 
+        // Show AI insight if available
+        if (result.aiInsight) {
+            addMessage('agent', result.aiInsight);
+        }
         addMessage('agent', `✅ Prova montada com ${result.documentCount} provas! Abrindo...`);
         router.push(`/app/quiz/${result.attemptId}`);
     };

@@ -114,29 +114,43 @@ export async function ingestUnifiedAction(params: { fileKey: string; fileName: s
                     console.log(`📄 Documento já existe (ID: ${docId}). Pulando criação...`);
                 }
 
-                // 1.2 RAG Embeddings
+                // 1.2 RAG Embeddings (Knowledge Snowball)
                 if (docId) {
                     const chunks = aiService.chunkText(textContent, 1000);
                     results.ragChunks += chunks.length;
 
-                    for (const chunk of chunks) {
+                    const institution = file.name.toLowerCase().includes('enare') ? 'ENARE' :
+                        file.name.toLowerCase().includes('usp') ? 'USP-SP' :
+                            file.name.toLowerCase().includes('unicamp') ? 'UNICAMP' : 'Outras';
+                    const yearMatch = file.name.match(/20(\d{2})/);
+                    const year = yearMatch ? parseInt(`20${yearMatch[1]}`) : new Date().getFullYear();
+
+                    for (let ci = 0; ci < chunks.length; ci++) {
                         try {
-                            const embedding = await aiService.generateEmbedding(chunk);
+                            const embedding = await aiService.generateEmbedding(chunks[ci]);
                             const embeddingStr = `[${embedding.join(',')}]`;
                             await query(`
                                 INSERT INTO document_embeddings (document_id, content, embedding, metadata)
                                 VALUES ($1, $2, $3, $4)
                             `, [
                                 docId,
-                                chunk,
+                                chunks[ci],
                                 embeddingStr,
-                                JSON.stringify({ filename: file.name })
+                                JSON.stringify({
+                                    filename: file.name,
+                                    institution,
+                                    year,
+                                    type: 'PROVA',
+                                    chunk_index: ci,
+                                    total_chunks: chunks.length,
+                                    source: 'auto_ingest'
+                                })
                             ]);
                         } catch (embErr) {
                             console.error('Erro gerando embedding:', embErr);
                         }
                     }
-                    console.log(`✅ ${chunks.length} embeddings salvos para RAG`);
+                    console.log(`✅ ${chunks.length} embeddings salvos para RAG (${institution} ${year})`);
                 }
 
                 // --- FLOW 2: QUESTION FACTORY (GPT-4o) → DigitalOcean ---
