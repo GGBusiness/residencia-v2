@@ -67,8 +67,8 @@ export async function createFullExamAction(req: ExamRequest): Promise<ExamResult
             pIndex++;
         }
 
-        sql += ` ORDER BY year DESC LIMIT $${pIndex}`;
-        const numDocs = req.questionCount <= 30 ? 6 : req.questionCount <= 50 ? 9 : 15;
+        sql += ` ORDER BY RANDOM() LIMIT $${pIndex}`;
+        const numDocs = req.questionCount <= 30 ? 8 : req.questionCount <= 50 ? 12 : 18;
         params.push(numDocs);
 
         const { rows } = await query(sql, params);

@@ -1,7 +1,6 @@
 'use server';
 
-import { createServerClient } from '@/lib/supabase';
-// Dynamic import for pdf-parse handled inside the function to avoid build issues
+import { query } from '@/lib/db';
 
 export async function ingestPDFAction(formData: FormData) {
     console.log('📄 Iniciando ingestão de PDF...');
@@ -17,11 +16,8 @@ export async function ingestPDFAction(formData: FormData) {
         const buffer = Buffer.from(arrayBuffer);
 
         // 2. Extrair Texto com pdf-parse
-        // Importação dinâmica idêntica ao script local
         const pdfParseModule: any = await import('pdf-parse');
         let pdfParse = pdfParseModule.default || pdfParseModule;
-
-        // Fallback robusto para encontrar a função principal
         if (typeof pdfParse !== 'function') {
             for (const key of Object.keys(pdfParseModule)) {
                 if (typeof pdfParseModule[key] === 'function') {
@@ -30,7 +26,6 @@ export async function ingestPDFAction(formData: FormData) {
                 }
             }
         }
-
         if (typeof pdfParse !== 'function') {
             throw new Error('Falha ao carregar biblioteca PDF-Parse.');
         }
@@ -41,7 +36,6 @@ export async function ingestPDFAction(formData: FormData) {
         console.log(`  ✅ Texto extraído: ${pdfText.length} caracteres`);
 
         // 3. Enviar para OpenAI (GPT-4o) para extração
-        // Trocamos Anthropic por OpenAI para simplificar chaves
         const { OpenAI } = await import('openai');
         const openai = new OpenAI({
             apiKey: process.env.OPENAI_API_KEY,
@@ -54,65 +48,53 @@ export async function ingestPDFAction(formData: FormData) {
             messages: [
                 {
                     role: "system",
-                    content: "Você é um especialista em extrair questões de provas médicas. Retorne APENAS um JSON válido."
+                    content: "Você é um especialista em extrair questões de provas médicas. Retorne APENAS um JSON válido. Distribua o gabarito entre A, B, C, D e E."
                 },
                 {
                     role: "user",
                     content: `EXTRAIA AS QUESTÕES DESTE TEXTO.
 Para cada questão, retorne JSON com:
 {
-    "question_text": "texto do enunciado",
+    "stem": "texto do enunciado",
     "option_a": "...",
     "option_b": "...",
     "option_c": "...",
     "option_d": "...",
     "option_e": "..." (ou null),
-    "correct_answer": "A" (se não souber, chute A),
+    "correct_option": "C" (distribua entre A-E, NÃO coloque sempre A),
     "area": "Clinica Medica" (detecte pelo contexto),
-    "explanation": "..." (se houver comentado)
+    "explanation": "Explicação médica detalhada"
 }
 
-Retorne APENAS um array JSON puro, sem markdown (\`\`\`json).
+Retorne { "questions": [...] } como JSON.
 
 TEXTO:
 ${pdfText.slice(0, 50000)}`
                 }
             ],
-            response_format: { type: "json_object" }, // Garante JSON válido
-            temperature: 0.2, // Mais preciso
+            response_format: { type: "json_object" },
+            temperature: 0.2,
         });
 
         const contentText = completion.choices[0].message.content;
 
-        // Tenta extrair JSON caso venha com texto extra (embora response_format evite isso)
         let extractedQuestions = [];
         try {
-            // O modo json_object do GPT-4o pode retornar um objeto { "questions": [...] } ou apenas array dependendo do prompt
-            // Vamos garantir o parse
-            const parsed = JSON.parse(contentText || '[]');
-
-            if (Array.isArray(parsed)) {
-                extractedQuestions = parsed;
-            } else if (parsed.questions && Array.isArray(parsed.questions)) {
-                extractedQuestions = parsed.questions;
-            } else {
-                // Tenta achar array dentro das chaves
+            const parsed = JSON.parse(contentText || '{}');
+            if (Array.isArray(parsed)) extractedQuestions = parsed;
+            else if (parsed.questions && Array.isArray(parsed.questions)) extractedQuestions = parsed.questions;
+            else {
                 const values = Object.values(parsed);
                 const arrayFound = values.find(v => Array.isArray(v));
                 if (arrayFound) extractedQuestions = arrayFound as any[];
             }
-
             if (extractedQuestions.length === 0) throw new Error('Nenhuma questão encontrada no JSON.');
-
         } catch (e) {
             console.error('JSON Parse Error:', contentText);
             throw new Error('Falha ao processar resposta da IA.');
         }
 
         console.log(`  ✅ ${extractedQuestions.length} questões identificadas pela IA`);
-
-        // Detectar metadados básicos pelo nome do arquivo
-        const filename = file.name.toLowerCase();
 
         // Log Usage
         const usage = completion.usage || { prompt_tokens: 0, completion_tokens: 0 };
@@ -123,40 +105,59 @@ ${pdfText.slice(0, 50000)}`
                 model: 'gpt-4o',
                 tokensInput: usage.prompt_tokens || 0,
                 tokensOutput: usage.completion_tokens || 0,
-                context: `ingest_pdf: ${filename}`,
-                userId: undefined // Admin action
+                context: `ingest_pdf: ${file.name}`,
+                userId: undefined
             });
         } catch (e) {
             console.error('Tracker error', e);
         }
 
-        // 4. Salvar no Banco
-        const supabase = createServerClient();
-
+        // 4. Primeiro criar o documento no DigitalOcean
+        const filename = file.name.toLowerCase();
         let institution = 'Outras';
         if (filename.includes('enare')) institution = 'ENARE';
-        else if (filename.includes('usp')) institution = 'USP';
+        else if (filename.includes('usp')) institution = 'USP-SP';
         else if (filename.includes('unicamp')) institution = 'UNICAMP';
 
-        const questionsToInsert = extractedQuestions.map((q: any) => ({
-            institution,
-            year: new Date().getFullYear(), // Default current year if not detected
-            area: q.area || 'Geral',
-            question_text: q.question_text,
-            option_a: q.option_a,
-            option_b: q.option_b,
-            option_c: q.option_c,
-            option_d: q.option_d,
-            option_e: q.option_e,
-            correct_answer: q.correct_answer || 'A',
-            explanation: q.explanation
-        }));
+        const yearMatch = file.name.match(/20(\d{2})/);
+        const year = yearMatch ? parseInt(`20${yearMatch[1]}`) : new Date().getFullYear();
 
-        const { error } = await supabase.from('questions').insert(questionsToInsert);
+        const { rows: docRows } = await query(`
+            INSERT INTO documents (title, type, institution, year, processed)
+            VALUES ($1, 'PROVA', $2, $3, TRUE)
+            RETURNING id
+        `, [file.name, institution, year]);
 
-        if (error) throw error;
+        const docId = docRows[0].id;
 
-        return { success: true, count: questionsToInsert.length };
+        // 5. Salvar questões no DigitalOcean com colunas corretas
+        let savedCount = 0;
+        for (const q of extractedQuestions) {
+            const stem = q.stem || q.question_text || '';
+            if (!stem || stem.length < 20) continue;
+
+            let correctOpt = (q.correct_option || q.correct_answer || 'A').toString().toUpperCase().replace(/[^A-E]/g, '');
+            if (!correctOpt || correctOpt.length !== 1) correctOpt = 'A';
+
+            await query(`
+                INSERT INTO questions (document_id, stem, option_a, option_b, option_c, option_d, option_e, correct_option, explanation, area)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            `, [
+                docId,
+                stem,
+                q.option_a || '',
+                q.option_b || '',
+                q.option_c || '',
+                q.option_d || '',
+                q.option_e || null,
+                correctOpt,
+                q.explanation || 'Gerado via IA',
+                q.area || 'Geral'
+            ]);
+            savedCount++;
+        }
+
+        return { success: true, count: savedCount };
 
     } catch (error: any) {
         console.error('Ingest Error:', error);

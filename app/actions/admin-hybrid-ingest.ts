@@ -2,8 +2,7 @@
 
 import { storageService } from '@/lib/storage';
 import { aiService } from '@/lib/ai-service';
-import { createServerClient } from '@/lib/supabase';
-import { createClient } from '@supabase/supabase-js';
+import { query } from '@/lib/db';
 import AdmZip from 'adm-zip';
 import pdfParse from 'pdf-parse';
 
@@ -51,34 +50,12 @@ export async function ingestUnifiedAction(params: { fileKey: string; fileName: s
             throw new Error('Formato não suportado. Apenas PDF ou ZIP com PDFs.');
         }
 
-        // 3. Processar cada arquivo (Loop)
-        // DEBUG: Verificar se as chaves estão carregadas
-        if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-            console.error('❌ ERRO CRÍTICO: SUPABASE_SERVICE_ROLE_KEY não encontrada!');
-            throw new Error('Configuração de Banco de Dados incompleta (Falta Service Key).');
-        }
-        console.log(`🔑 Service Key Loaded (${process.env.SUPABASE_SERVICE_ROLE_KEY.length} chars)`);
-
-        const adminSupabase = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!,
-            {
-                auth: {
-                    persistSession: false,
-                    autoRefreshToken: false,
-                    detectSessionInUrl: false
-                },
-                global: {
-                    headers: { 'x-my-custom-header': 'admin-ingest' } // Debug helper
-                }
-            }
-        );
-
+        // 3. Processar cada arquivo
         for (const file of filesToProcess) {
             try {
                 console.log(`Processing file: ${file.name}`);
 
-                // A. Extrair Texto com PDF-Parse (Estável)
+                // A. Extrair Texto com PDF-Parse
                 let textContent = '';
                 try {
                     const pdfData = await pdfParse(file.buffer);
@@ -91,95 +68,110 @@ export async function ingestUnifiedAction(params: { fileKey: string; fileName: s
                 // Limpeza básica
                 textContent = textContent.replace(/\s+/g, ' ').trim();
 
-                // CHECK: Se for vazio, é scan
+                // CHECK: Se for vazio, é scan/imagem
                 if (!textContent || textContent.length < 50) {
                     const msg = `⚠️ ${file.name}: ARQUIVO É UMA IMAGEM/XEROX. O sistema só lê PDFs com texto selecionável.`;
                     console.warn(msg);
-                    results.errors.push(msg); // Adiciona ao log visível do usuário
-                    continue; // Pula este arquivo
+                    results.errors.push(msg);
+                    continue;
                 }
 
-                // --- FLOW 1: RAG (KNOWLEDGE BASE) ---
+                // --- FLOW 1: RAG (KNOWLEDGE BASE) → DigitalOcean ---
 
                 // 1.1 Deduplicação de Documento
-                // Verifica se já existe documento com este nome exato
-                const { data: existingDoc } = await adminSupabase
-                    .from('documents')
-                    .select('id')
-                    .eq('title', file.name)
-                    .single();
+                const { rows: existingDocs } = await query(
+                    'SELECT id FROM documents WHERE title = $1 LIMIT 1',
+                    [file.name]
+                );
 
-                let docId = existingDoc?.id;
+                let docId = existingDocs[0]?.id;
 
                 if (!docId) {
-                    // Inserir novo
-                    const { data: docData, error: docError } = await adminSupabase
-                        .from('documents')
-                        .insert({
-                            title: file.name,
-                            doc_type: 'hybrid_ingest',
-                            file_path: params.publicUrl,
-                            metadata: { source_zip: params.fileName, internal_path: file.name },
-                            year: new Date().getFullYear()
-                        })
-                        .select()
-                        .single();
+                    // Detectar instituição do nome do arquivo
+                    const institution = file.name.toLowerCase().includes('enare') ? 'ENARE' :
+                        file.name.toLowerCase().includes('usp') ? 'USP-SP' :
+                            file.name.toLowerCase().includes('unicamp') ? 'UNICAMP' : 'Outras';
 
-                    if (docError) {
-                        console.error('Erro inserindo doc:', docError);
-                        throw new Error(`Erro ao salvar documento: ${docError.message}`);
-                    }
-                    docId = docData.id;
+                    const yearMatch = file.name.match(/20(\d{2})/);
+                    const year = yearMatch ? parseInt(`20${yearMatch[1]}`) : new Date().getFullYear();
+
+                    const { rows: newDoc } = await query(`
+                        INSERT INTO documents (title, type, institution, year, pdf_url, processed, metadata)
+                        VALUES ($1, $2, $3, $4, $5, TRUE, $6)
+                        RETURNING id
+                    `, [
+                        file.name,
+                        'PROVA',
+                        institution,
+                        year,
+                        params.publicUrl,
+                        JSON.stringify({ source_zip: params.fileName, internal_path: file.name })
+                    ]);
+                    docId = newDoc[0].id;
+                    console.log(`📄 Documento criado: ${docId}`);
                 } else {
                     console.log(`📄 Documento já existe (ID: ${docId}). Pulando criação...`);
-                    // Opcional: Limpar embeddings antigos se for re-ingestão?
-                    // await adminSupabase.from('document_embeddings').delete().eq('document_id', docId);
                 }
 
+                // 1.2 RAG Embeddings
                 if (docId) {
                     const chunks = aiService.chunkText(textContent, 1000);
                     results.ragChunks += chunks.length;
 
-                    // Salvar Embeddings (Batch Limitado)
-                    const embeddingsToInsert = [];
                     for (const chunk of chunks) {
                         try {
                             const embedding = await aiService.generateEmbedding(chunk);
-                            embeddingsToInsert.push({
-                                document_id: docId,
-                                content: chunk,
-                                embedding,
-                                metadata: { filename: file.name }
-                            });
+                            const embeddingStr = `[${embedding.join(',')}]`;
+                            await query(`
+                                INSERT INTO document_embeddings (document_id, content, embedding, metadata)
+                                VALUES ($1, $2, $3, $4)
+                            `, [
+                                docId,
+                                chunk,
+                                embeddingStr,
+                                JSON.stringify({ filename: file.name })
+                            ]);
                         } catch (embErr) {
                             console.error('Erro gerando embedding:', embErr);
                         }
                     }
-
-                    // Insert in batches of 50
-                    for (let i = 0; i < embeddingsToInsert.length; i += 50) {
-                        const batch = embeddingsToInsert.slice(i, i + 50);
-                        if (batch.length > 0) {
-                            const { error: embInsertError } = await adminSupabase.from('document_embeddings').insert(batch);
-                            if (embInsertError) console.error('Erro salvando embeddings:', embInsertError);
-                        }
-                    }
+                    console.log(`✅ ${chunks.length} embeddings salvos para RAG`);
                 }
 
-                // --- FLOW 2: QUESTION FACTORY (GPT-4o) ---
+                // --- FLOW 2: QUESTION FACTORY (GPT-4o) → DigitalOcean ---
                 const { OpenAI } = await import('openai');
                 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
                 const prompt = `
-                    ANALISE O TEXTO ABAIXO E GERE/EXTRAIA QUESTÕES.
+                    ANALISE O TEXTO ABAIXO E GERE/EXTRAIA QUESTÕES DE RESIDÊNCIA MÉDICA.
                     
-                    1. Se for uma PROVA: Extraia as questões existentes.
-                    2. Se for MATERIAL DE ESTUDO (Apostila, Resumo): GERE questões baseadas no conteúdo.
+                    1. Se for uma PROVA: Extraia as questões existentes fielmente.
+                    2. Se for MATERIAL DE ESTUDO (Apostila, Resumo): GERE questões de múltipla escolha baseadas no conteúdo.
 
-                    Regras:
-                    - Gere no máximo 10 questões de alta qualidade por arquivo (para não estourar tokens).
-                    - Formato JSON estrito.
-                    - Campos obrigatórios: question_text, options (a,b,c,d,e), correct_answer, explanation.
+                    Regras OBRIGATÓRIAS:
+                    - Gere no máximo 15 questões de alta qualidade por arquivo.
+                    - DISTRIBUA o gabarito: use A, B, C, D e E de forma equilibrada.
+                    - NÃO coloque a resposta sempre na mesma letra.
+                    - Cada questão deve ter 5 alternativas (A-E) quando possível, ou mínimo 4 (A-D).
+                    - Inclua explicação médica detalhada para cada resposta correta.
+                    - Identifique a área médica da questão.
+                    
+                    Formato JSON estrito:
+                    {
+                        "questions": [
+                            {
+                                "stem": "Texto completo da questão...",
+                                "option_a": "Alternativa A",
+                                "option_b": "Alternativa B", 
+                                "option_c": "Alternativa C",
+                                "option_d": "Alternativa D",
+                                "option_e": "Alternativa E",
+                                "correct_option": "C",
+                                "explanation": "Explicação detalhada...",
+                                "area": "Clínica Médica"
+                            }
+                        ]
+                    }
 
                     TEXTO (Início):
                     ${textContent.slice(0, 15000)}... (truncado)
@@ -188,7 +180,7 @@ export async function ingestUnifiedAction(params: { fileKey: string; fileName: s
                 const completion = await openai.chat.completions.create({
                     model: "gpt-4o",
                     messages: [
-                        { role: "system", content: "Você é um gerador de questões médicas. Retorne JSON array puro." },
+                        { role: "system", content: "Você é um gerador de questões médicas de residência. Retorne apenas JSON válido. Distribua as respostas corretas entre A, B, C, D e E de forma equilibrada." },
                         { role: "user", content: prompt }
                     ],
                     response_format: { type: "json_object" }
@@ -204,38 +196,43 @@ export async function ingestUnifiedAction(params: { fileKey: string; fileName: s
                 if (questions.length > 0) {
                     let savedCount = 0;
                     for (const q of questions) {
-                        // Deduplicação de Questão
-                        // Verifica se texto da questão já existe
-                        const { data: existingQ } = await adminSupabase
-                            .from('questions')
-                            .select('id')
-                            .eq('question_text', q.question_text)
-                            .single();
+                        // Deduplicação: checar se questão com texto similar já existe
+                        const stem = q.stem || q.question_text || '';
+                        if (!stem || stem.length < 20) continue;
 
-                        if (existingQ) {
+                        const { rows: existingQ } = await query(
+                            'SELECT id FROM questions WHERE stem = $1 LIMIT 1',
+                            [stem]
+                        );
+
+                        if (existingQ.length > 0) {
                             console.log('Questão duplicada pulada.');
                             continue;
                         }
 
-                        const { error: qError } = await adminSupabase.from('questions').insert({
-                            institution: file.name.includes('ENARE') ? 'ENARE' : 'App-Generated',
-                            year: new Date().getFullYear(),
-                            area: q.area || 'Geral',
-                            question_text: q.question_text,
-                            option_a: q.option_a || q.options?.a,
-                            option_b: q.option_b || q.options?.b,
-                            option_c: q.option_c || q.options?.c,
-                            option_d: q.option_d || q.options?.d,
-                            option_e: q.option_e || q.options?.e || null,
-                            correct_answer: (q.correct_answer || 'A').toString().toUpperCase().replace(/[^A-E]/g, '') || 'A',
-                            explanation: q.explanation || 'Gerado via IA',
-                            created_at: new Date().toISOString()
-                        });
+                        // Validar correct_option
+                        let correctOpt = (q.correct_option || q.correct_answer || 'A').toString().toUpperCase().replace(/[^A-E]/g, '');
+                        if (!correctOpt || correctOpt.length !== 1) correctOpt = 'A';
 
-                        if (!qError) savedCount++;
-                        else results.errors.push(`${file.name}: Erro ao salvar questão - ${qError.message}`);
+                        await query(`
+                            INSERT INTO questions (document_id, stem, option_a, option_b, option_c, option_d, option_e, correct_option, explanation, area)
+                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                        `, [
+                            docId,
+                            stem,
+                            q.option_a || q.options?.a || '',
+                            q.option_b || q.options?.b || '',
+                            q.option_c || q.options?.c || '',
+                            q.option_d || q.options?.d || '',
+                            q.option_e || q.options?.e || null,
+                            correctOpt,
+                            q.explanation || 'Gerado via IA',
+                            q.area || 'Geral'
+                        ]);
+                        savedCount++;
                     }
                     results.questionsGenerated += savedCount;
+                    console.log(`✅ ${savedCount} questões salvas no banco`);
                 }
 
                 results.processedFiles++;
