@@ -96,7 +96,7 @@ export async function getQuizDataAction(attemptId: string): Promise<{ success: b
             }
 
             // Shuffle options using question ID as seed for consistency
-            const shuffled = shuffleOptions(rawOptions, q.id);
+            const shuffled = shuffleOptions(rawOptions);
 
             // Find where the correct answer ended up after shuffle
             const originalCorrect = q.correct_option; // 'A', 'B', etc.
@@ -202,26 +202,14 @@ function cleanOption(option: string | null): string | null {
 }
 
 /**
- * Shuffle options using a seeded random based on question ID.
- * This ensures the same question always gets the same shuffle
- * (stable across page reloads) but different questions get different orders.
+ * Shuffle options using Fisher-Yates with Math.random().
+ * Distributes correct answers randomly across A-E positions.
  */
-function shuffleOptions(options: { key: string; text: string }[], seed: string): { key: string; text: string }[] {
+function shuffleOptions(options: { key: string; text: string }[]): { key: string; text: string }[] {
     const arr = [...options];
-    // Simple hash from string to number
-    let hash = 0;
-    for (let i = 0; i < seed.length; i++) {
-        const char = seed.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash |= 0; // Convert to 32-bit integer
-    }
-    // Fisher-Yates shuffle with seeded random
-    let m = arr.length;
-    while (m > 0) {
-        hash = (hash * 1103515245 + 12345) & 0x7fffffff;
-        const i = hash % m;
-        m--;
-        [arr[m], arr[i]] = [arr[i], arr[m]];
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
     }
     return arr;
 }
