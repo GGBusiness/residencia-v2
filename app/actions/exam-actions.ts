@@ -36,7 +36,9 @@ export async function createFullExamAction(req: ExamRequest): Promise<ExamResult
     try {
         console.log('[createFullExam] Step 1: Selecting documents...');
 
-        let sql = "SELECT id, title FROM documents WHERE type = 'PROVA'";
+        let sql = `SELECT id, title FROM documents 
+            WHERE type = 'PROVA'
+            AND EXISTS (SELECT 1 FROM questions q WHERE q.document_id = documents.id)`;
         const params: any[] = [];
         let pIndex = 1;
 
