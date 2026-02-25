@@ -6,8 +6,8 @@ import { History as HistoryIcon, Calendar, Award, Eye, FileText } from 'lucide-r
 import { Card, CardBody } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/lib/supabase';
 import { useUser } from '@/hooks/useUser';
+import { getHistoryAction } from '@/app/actions/history-actions';
 
 export default function HistoricoPage() {
     const router = useRouter();
@@ -29,14 +29,12 @@ export default function HistoricoPage() {
         try {
             if (!user?.id) return;
 
-            const { data, error } = await supabase
-                .from('attempts')
-                .select('*')
-                .eq('user_id', user.id)
-                .order('started_at', { ascending: false });
-
-            if (error) throw error;
-            setAttempts(data || []);
+            const result = await getHistoryAction(user.id);
+            if (result.success) {
+                setAttempts(result.data || []);
+            } else {
+                console.error('Error loading history:', result.error);
+            }
         } catch (error) {
             console.error('Error loading history:', error);
         } finally {

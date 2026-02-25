@@ -81,22 +81,45 @@ export async function getQuizDataAction(attemptId: string): Promise<{ success: b
         }
 
         // 3. Map DB fields to Frontend fields — clean all text at runtime
-        const mappedQuestions = questions.map(q => ({
-            id: q.id,
-            institution: q.institution || q.doc_title || 'Prova',
-            year: q.doc_year || 0,
-            area: q.area || 'Geral',
-            subarea: q.subarea || '',
-            difficulty: 'Média', // Column doesn't exist in DB, use default
-            question_text: cleanStem(q.stem),
-            option_a: cleanOption(q.option_a) || '',
-            option_b: cleanOption(q.option_b) || '',
-            option_c: cleanOption(q.option_c) || '',
-            option_d: cleanOption(q.option_d) || '',
-            option_e: cleanOption(q.option_e),
-            correct_answer: q.correct_option,
-            explanation: q.explanation || 'Explicação não disponível para esta questão.',
-        }));
+        // Also shuffle options so correct answer isn't always in the same position
+        const mappedQuestions = questions.map(q => {
+            const rawOptions = [
+                { key: 'A', text: cleanOption(q.option_a) || '' },
+                { key: 'B', text: cleanOption(q.option_b) || '' },
+                { key: 'C', text: cleanOption(q.option_c) || '' },
+                { key: 'D', text: cleanOption(q.option_d) || '' },
+            ];
+            // Only add E if it exists
+            if (q.option_e) {
+                const cleanedE = cleanOption(q.option_e);
+                if (cleanedE) rawOptions.push({ key: 'E', text: cleanedE });
+            }
+
+            // Shuffle options using question ID as seed for consistency
+            const shuffled = shuffleOptions(rawOptions, q.id);
+
+            // Find where the correct answer ended up after shuffle
+            const originalCorrect = q.correct_option; // 'A', 'B', etc.
+            const newCorrectIdx = shuffled.findIndex(o => o.key === originalCorrect);
+            const newCorrectLetter = ['A', 'B', 'C', 'D', 'E'][newCorrectIdx] || originalCorrect;
+
+            return {
+                id: q.id,
+                institution: q.institution || q.doc_title || 'Prova',
+                year: q.doc_year || 0,
+                area: q.area || 'Geral',
+                subarea: q.subarea || '',
+                difficulty: 'Média',
+                question_text: cleanStem(q.stem),
+                option_a: shuffled[0]?.text || '',
+                option_b: shuffled[1]?.text || '',
+                option_c: shuffled[2]?.text || '',
+                option_d: shuffled[3]?.text || '',
+                option_e: shuffled[4]?.text || null,
+                correct_answer: newCorrectLetter,
+                explanation: q.explanation || 'Explicação não disponível para esta questão.',
+            };
+        });
 
         // 4. Get existing answers
         const { rows: answers } = await query('SELECT * FROM attempt_answers WHERE attempt_id = $1', [attemptId]);
@@ -176,6 +199,31 @@ function cleanOption(option: string | null): string | null {
     if (!option) return null;
     const cleaned = stripGarbage(option);
     return cleaned.length > 1 ? cleaned : null;
+}
+
+/**
+ * Shuffle options using a seeded random based on question ID.
+ * This ensures the same question always gets the same shuffle
+ * (stable across page reloads) but different questions get different orders.
+ */
+function shuffleOptions(options: { key: string; text: string }[], seed: string): { key: string; text: string }[] {
+    const arr = [...options];
+    // Simple hash from string to number
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+        const char = seed.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash |= 0; // Convert to 32-bit integer
+    }
+    // Fisher-Yates shuffle with seeded random
+    let m = arr.length;
+    while (m > 0) {
+        hash = (hash * 1103515245 + 12345) & 0x7fffffff;
+        const i = hash % m;
+        m--;
+        [arr[m], arr[i]] = [arr[i], arr[m]];
+    }
+    return arr;
 }
 
 export async function saveAnswerAction(attemptId: string, questionId: string, answer: string, isCorrect: boolean, questionIndex: number) {
