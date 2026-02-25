@@ -80,7 +80,7 @@ export async function getQuizDataAction(attemptId: string): Promise<{ success: b
             questions = questions.slice(0, limit);
         }
 
-        // 3. Map DB fields to Frontend fields
+        // 3. Map DB fields to Frontend fields — clean all text at runtime
         const mappedQuestions = questions.map(q => ({
             id: q.id,
             institution: q.institution || q.doc_title || 'Prova',
@@ -89,11 +89,11 @@ export async function getQuizDataAction(attemptId: string): Promise<{ success: b
             subarea: q.subarea || '',
             difficulty: 'Média', // Column doesn't exist in DB, use default
             question_text: cleanStem(q.stem),
-            option_a: q.option_a || '',
-            option_b: q.option_b || '',
-            option_c: q.option_c || '',
-            option_d: q.option_d || '',
-            option_e: q.option_e || null,
+            option_a: cleanOption(q.option_a) || '',
+            option_b: cleanOption(q.option_b) || '',
+            option_c: cleanOption(q.option_c) || '',
+            option_d: cleanOption(q.option_d) || '',
+            option_e: cleanOption(q.option_e),
             correct_answer: q.correct_option,
             explanation: q.explanation || 'Explicação não disponível para esta questão.',
         }));
@@ -121,24 +121,61 @@ export async function getQuizDataAction(attemptId: string): Promise<{ success: b
 }
 
 /**
- * Clean stem text — remove PDF extraction artifacts (page numbers, headers).
+ * Strip known PDF garbage patterns from any text at runtime.
+ * This is a second line of defense after the DB cleanup scripts.
+ */
+function stripGarbage(text: string): string {
+    let cleaned = text;
+    // Remove GABARITO text and everything after (case variations)
+    cleaned = cleaned.replace(/\s*GABARITO[\s\S]*$/, '');
+    cleaned = cleaned.replace(/\s*Gabarito[\s\S]*$/, '');
+    cleaned = cleaned.replace(/\s*gabarito[\s\S]*$/, '');
+    // Remove "Medway - ENARE - 2026" headers and everything after
+    cleaned = cleaned.replace(/\s*Medway\s*[-–][\s\S]*$/, '');
+    // Remove "Páginas X/Y" and everything after
+    cleaned = cleaned.replace(/\s*P[aá]ginas?\s*\d+\/\d+[\s\S]*$/, '');
+    cleaned = cleaned.replace(/\s*P[aá]gina\s*\d+\s*de\s*\d+[\s\S]*$/, '');
+    // Remove next question bleeding: "84) O médico..." (a digit+paren followed by 20+ chars at end)
+    cleaned = cleaned.replace(/\s*\d+\)\s+[A-Z][a-záéíóúàãõâêôç][\s\S]{20,}$/, '');
+    // Remove "QUESTÃO X" bleeding (case variations)
+    cleaned = cleaned.replace(/\s*QUEST[ÃA]O\s+\d+[\s\S]*$/, '');
+    cleaned = cleaned.replace(/\s*Quest[ãa]o\s+\d+[\s\S]*$/, '');
+    // Remove trailing loose numbers/dots
+    cleaned = cleaned.replace(/\s+\d+\.\s*$/, '');
+    return cleaned.trim();
+}
+
+/**
+ * Clean stem text — remove PDF extraction artifacts.
  */
 function cleanStem(stem: string | null): string {
     if (!stem) return 'Questão sem enunciado';
-
     let cleaned = stem;
 
-    // Remove leading garbage: sequences of numbers/dots/ellipsis before question number
-    // e.g. "2 2023 ... 31 2024 ... 57   1)Assinale..."
+    // Remove leading garbage: sequences of numbers/dots/ellipsis
     cleaned = cleaned.replace(/^[\d\s.…]+(?=\d+\))/m, '');
-
     // Remove leading question number "1)" or "57)"
     cleaned = cleaned.replace(/^\s*\d+\)\s*/, '');
+    // Remove leading "1. " or "57. "
+    cleaned = cleaned.replace(/^\s*\d+\.\s+/, '');
+    // Remove institution headers at start
+    cleaned = cleaned.replace(/^(ENARE|USP|UNICAMP|UNIFESP|SUS-SP|PSU|UNESP|UFES|UFRJ|ISCMSP|enare|usp|unicamp|unifesp)\s*\d{4}[^A-Za-zÀ-ú]*/, '');
+    // Remove "A B C D E" header
+    cleaned = cleaned.replace(/^[Aa] [Bb] [Cc] [Dd] [Ee]\s*/, '');
 
-    // Trim
-    cleaned = cleaned.trim();
+    // Strip garbage patterns
+    cleaned = stripGarbage(cleaned);
 
-    return cleaned || 'Questão sem enunciado';
+    return cleaned.trim() || 'Questão sem enunciado';
+}
+
+/**
+ * Clean option text — remove PDF garbage that bled into options.
+ */
+function cleanOption(option: string | null): string | null {
+    if (!option) return null;
+    const cleaned = stripGarbage(option);
+    return cleaned.length > 1 ? cleaned : null;
 }
 
 export async function saveAnswerAction(attemptId: string, questionId: string, answer: string, isCorrect: boolean, questionIndex: number) {
