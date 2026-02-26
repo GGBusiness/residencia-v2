@@ -8,6 +8,9 @@ import { getAdminStatsAction, getAdminCostsAction, setupAdminSchemaAction } from
 import { logoutAdminAction } from '@/app/actions/admin-auth';
 import { useRouter } from 'next/navigation';
 import IntelligenceHub from './knowledge/IntelligenceHub';
+import { AdminDateRangePicker } from './components/AdminDateRangePicker';
+import { DateRange } from "react-day-picker";
+import { subDays } from "date-fns";
 
 export default function AdminDashboard() {
     const router = useRouter();
@@ -20,16 +23,27 @@ export default function AdminDashboard() {
     const [loading, setLoading] = useState(true);
     const [refreshingInfra, setRefreshingInfra] = useState(false);
 
+    // Default to last 30 days like the screenshot
+    const [dateRange, setDateRange] = useState<DateRange | undefined>({
+        from: subDays(new Date(), 30),
+        to: new Date()
+    });
+
     useEffect(() => {
-        const fetchStats = async () => {
-            const result = await getAdminStatsAction();
-            if (result.success) {
-                setStats(result.data);
-            }
-            setLoading(false);
-        };
-        fetchStats();
-    }, []);
+        if (activeTab === 'overview') {
+            const fetchStats = async () => {
+                setLoading(true);
+                const start = dateRange?.from ? dateRange.from.toISOString() : undefined;
+                const end = dateRange?.to ? dateRange.to.toISOString() : undefined;
+                const result = await getAdminStatsAction(start, end);
+                if (result.success) {
+                    setStats(result.data);
+                }
+                setLoading(false);
+            };
+            fetchStats();
+        }
+    }, [activeTab, dateRange]);
 
     const fetchInfraData = async () => {
         setRefreshingInfra(true);
@@ -41,22 +55,25 @@ export default function AdminDashboard() {
         setRefreshingInfra(false);
     };
 
-    // Fetch costs when tab changes
+    // Fetch costs when tab changes or date range changes
     useEffect(() => {
         if (activeTab === 'finance') {
             const fetchFinanceData = async () => {
-                const costsResult = await getAdminCostsAction();
+                const start = dateRange?.from ? dateRange.from.toISOString() : undefined;
+                const end = dateRange?.to ? dateRange.to.toISOString() : undefined;
+
+                const costsResult = await getAdminCostsAction(start, end);
                 if (costsResult.success) {
                     setCosts(costsResult.data);
                 }
 
                 const { getPushHistoryAction, getOneSignalStatsAction } = await import('@/app/actions/admin-actions');
-                const histRes = await getPushHistoryAction();
+                const histRes = await getPushHistoryAction(start, end);
                 if (histRes.success) {
                     setPushHistory(histRes.data);
                 }
 
-                const onesignalRes = await getOneSignalStatsAction();
+                const onesignalRes = await getOneSignalStatsAction(start, end);
                 if (onesignalRes.success) {
                     setPushStats(onesignalRes.data);
                 }
@@ -64,7 +81,7 @@ export default function AdminDashboard() {
             fetchFinanceData();
             fetchInfraData();
         }
-    }, [activeTab]);
+    }, [activeTab, dateRange]);
 
     const handleSetupSchema = async () => {
         if (!confirm('Isso criará a tabela de logs se não existir. Continuar?')) return;
@@ -86,7 +103,8 @@ export default function AdminDashboard() {
                     <h1 className="text-3xl font-bold text-slate-900">Dashboard</h1>
                     <p className="text-slate-500">Visão geral do sistema e controle de ingestão.</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                    <AdminDateRangePicker date={dateRange} setDate={setDateRange} />
                     <Button
                         variant={activeTab === 'overview' ? 'primary' : 'outline'}
                         onClick={() => setActiveTab('overview')}

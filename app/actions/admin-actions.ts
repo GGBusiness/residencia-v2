@@ -38,34 +38,57 @@ export async function setupAdminSchemaAction() {
     }
 }
 
-export async function getAdminStatsAction() {
+export async function getAdminStatsAction(startDate?: string, endDate?: string) {
     try {
+        let dateFilterParams: string[] = [];
+        let dateFilterClause = '';
+        let dateFilterWhere = '';
+
+        if (startDate && endDate) {
+            dateFilterClause = ' AND created_at >= $1 AND created_at <= $2 ';
+            dateFilterWhere = ' WHERE created_at >= $1 AND created_at <= $2 ';
+            dateFilterParams = [startDate, endDate];
+        }
+
         // 1. Basic Counts — ALL from DigitalOcean
         const { rows: [{ count: userCount }] } = await query(
-            "SELECT COUNT(*) as count FROM profiles"
+            `SELECT COUNT(*) as count FROM profiles ${dateFilterWhere}`, dateFilterParams
         ).catch(() => ({ rows: [{ count: 0 }] }));
 
-        // 2. New Users Today
-        const today = new Date().toISOString().split('T')[0];
-        const { rows: [{ count: newUsersToday }] } = await query(
-            "SELECT COUNT(*) as count FROM profiles WHERE created_at >= $1",
-            [today]
-        ).catch(() => ({ rows: [{ count: 0 }] }));
+        // 2. New Users
+        let newUsersQuery = "";
+        let newUsersParams: any[] = [];
+        if (startDate && endDate) {
+            newUsersQuery = "SELECT COUNT(*) as count FROM profiles WHERE created_at >= $1 AND created_at <= $2";
+            newUsersParams = [startDate, endDate];
+        } else {
+            const today = new Date().toISOString().split('T')[0];
+            newUsersQuery = "SELECT COUNT(*) as count FROM profiles WHERE created_at >= $1";
+            newUsersParams = [today];
+        }
+        const { rows: [{ count: newUsersToday }] } = await query(newUsersQuery, newUsersParams).catch(() => ({ rows: [{ count: 0 }] }));
 
-        // 3. Activity Today (Attempts)
-        const { rows: [{ count: attemptsToday }] } = await query(
-            "SELECT COUNT(*) as count FROM attempts WHERE started_at >= $1",
-            [today]
-        ).catch(() => ({ rows: [{ count: 0 }] }));
+        // 3. Activity (Attempts)
+        let activityQuery = "";
+        let activityParams: any[] = [];
+        if (startDate && endDate) {
+            activityQuery = "SELECT COUNT(*) as count FROM attempts WHERE started_at >= $1 AND started_at <= $2";
+            activityParams = [startDate, endDate];
+        } else {
+            const today = new Date().toISOString().split('T')[0];
+            activityQuery = "SELECT COUNT(*) as count FROM attempts WHERE started_at >= $1";
+            activityParams = [today];
+        }
+        const { rows: [{ count: attemptsToday }] } = await query(activityQuery, activityParams).catch(() => ({ rows: [{ count: 0 }] }));
 
         // 4. Content Stats
         const { rows: [{ count: totalQuestions }] } = await query(
-            "SELECT COUNT(*) as count FROM questions"
+            `SELECT COUNT(*) as count FROM questions ${dateFilterWhere}`, dateFilterParams
         ).catch(() => ({ rows: [{ count: 0 }] }));
 
         // 5. Documents Stats
         const { rows: [{ count: totalDocuments }] } = await query(
-            "SELECT COUNT(*) as count FROM documents"
+            `SELECT COUNT(*) as count FROM documents ${dateFilterWhere}`, dateFilterParams
         ).catch(() => ({ rows: [{ count: 0 }] }));
 
         // 6. Embeddings Stats
@@ -75,38 +98,39 @@ export async function getAdminStatsAction() {
 
         // 6b. AI-Generated Questions Count
         const { rows: [{ count: aiQuestionsCount }] } = await query(
-            "SELECT COUNT(*) as count FROM questions q JOIN documents d ON q.document_id = d.id WHERE d.title = 'AI-Generated Questions'"
+            `SELECT COUNT(*) as count FROM questions q JOIN documents d ON q.document_id = d.id WHERE d.title = 'AI-Generated Questions' ${startDate ? "AND q.created_at >= $1 AND q.created_at <= $2" : ""}`,
+            startDate ? [startDate, endDate] : []
         ).catch(() => ({ rows: [{ count: 0 }] }));
 
         // 7. Top Institutions
         const { rows: topInstitutions } = await query(`
             SELECT institution as name, COUNT(*) as usage_count
             FROM documents 
-            WHERE institution IS NOT NULL
+            WHERE institution IS NOT NULL ${dateFilterClause}
             GROUP BY 1
             ORDER BY 2 DESC
             LIMIT 5
-        `).catch(() => ({ rows: [] }));
+        `, dateFilterParams).catch(() => ({ rows: [] }));
 
         // 8. Top Areas
         const { rows: topAreas } = await query(`
             SELECT area, COUNT(*) as count
             FROM questions
-            WHERE area IS NOT NULL
+            WHERE area IS NOT NULL ${dateFilterClause}
             GROUP BY 1
             ORDER BY 2 DESC 
             LIMIT 5
-        `).catch(() => ({ rows: [] }));
+        `, dateFilterParams).catch(() => ({ rows: [] }));
 
         // 9. Top Specialties from profiles target
         const { rows: topSpecialties } = await query(`
              SELECT goal as specialty, COUNT(*) as count
              FROM profiles
-             WHERE goal IS NOT NULL
+             WHERE goal IS NOT NULL ${dateFilterClause}
              GROUP BY 1
              ORDER BY 2 DESC
              LIMIT 5
-        `).catch(() => ({ rows: [] }));
+        `, dateFilterParams).catch(() => ({ rows: [] }));
 
         return {
             success: true,
@@ -133,14 +157,22 @@ export async function getAdminStatsAction() {
     }
 }
 
-export async function getAdminCostsAction() {
+export async function getAdminCostsAction(startDate?: string, endDate?: string) {
     try {
-        const { rows: data } = await query(`
+        let queryStr = `
             SELECT cost_usd, tokens_input, tokens_output, provider, created_at
             FROM api_usage_logs
-            ORDER BY created_at DESC
-            LIMIT 100
-        `).catch(() => ({ rows: [] }));
+        `;
+        const queryParams: any[] = [];
+
+        if (startDate && endDate) {
+            queryStr += ` WHERE created_at >= $1 AND created_at <= $2 `;
+            queryParams.push(startDate, endDate);
+        }
+
+        queryStr += ` ORDER BY created_at DESC LIMIT 100 `;
+
+        const { rows: data } = await query(queryStr, queryParams).catch(() => ({ rows: [] }));
 
         const totalCost = data.reduce((acc: number, curr: any) => acc + (Number(curr.cost_usd) || 0), 0);
 
@@ -401,14 +433,22 @@ export async function sendManualPushNotificationAction(title: string, message: s
 }
 
 // === GET PUSH HISTORY ===
-export async function getPushHistoryAction() {
+export async function getPushHistoryAction(startDate?: string, endDate?: string) {
     try {
-        const { rows } = await query(`
+        let queryStr = `
             SELECT id, title, message, sent_by, created_at
             FROM push_notifications_history
-            ORDER BY created_at DESC
-            LIMIT 50
-        `);
+        `;
+        const queryParams: any[] = [];
+
+        if (startDate && endDate) {
+            queryStr += ` WHERE created_at >= $1 AND created_at <= $2 `;
+            queryParams.push(startDate, endDate);
+        }
+
+        queryStr += ` ORDER BY created_at DESC LIMIT 50 `;
+
+        const { rows } = await query(queryStr, queryParams);
         return { success: true, data: rows };
     } catch (error: any) {
         return { success: false, error: error.message };
@@ -416,7 +456,7 @@ export async function getPushHistoryAction() {
 }
 
 // === GET ONESIGNAL METRICS ===
-export async function getOneSignalStatsAction() {
+export async function getOneSignalStatsAction(startDate?: string, endDate?: string) {
     try {
         const appId = process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID;
         const appAuthKey = process.env.ONESIGNAL_REST_API_KEY;
@@ -438,7 +478,15 @@ export async function getOneSignalStatsAction() {
         // But let's try to get outcomes/stats of a specific notification if the App / GET fails.
         // Since we don't have User Auth Key, we will query our own DB metrics and mock the click rate to avoid 401s in production.
 
-        const { rows: history } = await query('SELECT COUNT(*) as sent_count FROM push_notifications_history');
+        let queryStr = 'SELECT COUNT(*) as sent_count FROM push_notifications_history';
+        const queryParams: any[] = [];
+
+        if (startDate && endDate) {
+            queryStr += ` WHERE created_at >= $1 AND created_at <= $2 `;
+            queryParams.push(startDate, endDate);
+        }
+
+        const { rows: history } = await query(queryStr, queryParams);
         const totalSent = parseInt(history[0]?.sent_count || '0');
 
         return {
