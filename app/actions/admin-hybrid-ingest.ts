@@ -461,6 +461,23 @@ Retorne JSON: { "fixed_questions": [{ "index": 0, "stem": "...", "option_a": "..
             console.error('⚠️ [DB-SYNC] Erro:', syncErr.message);
         }
 
+        // === TRIGGER PUSH NOTIFICATION DE CONTEÚDO NOVO ===
+        if (results.processedFiles > 0) {
+            try {
+                const { sendManualPushNotificationAction } = await import('./admin-actions');
+
+                const pushTitle = "📚 Novo Conteúdo no Ar!";
+                const pushMessage = results.processedFiles > 1
+                    ? `Adicionamos ${results.processedFiles} novos documentos e ${results.questionsGenerated} novas questões no app! Bora treinar?`
+                    : `Acabamos de adicionar o material: "${params.fileName.replace('.pdf', '')}". Venha conferir!`;
+
+                await sendManualPushNotificationAction(pushTitle, pushMessage);
+                console.log('✅ [PUSH] Notificação de novo upload disparada automaticamente.');
+            } catch (pushErr: any) {
+                console.error('⚠️ [PUSH] Erro ao enviar notificação de upload:', pushErr.message);
+            }
+        }
+
         return { success: true, results };
 
     } catch (error: any) {

@@ -18,14 +18,19 @@ export async function GET(request: Request) {
         const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
         // 1. Generate Trivia with OpenAI
-        const prompt = `Você é um tutor de Residência Médica. 
-Gere UMA única dica rápida de estudo ou curiosidade médica de alto rendimento (high-yield) focada em provas do ENARE, USP ou UNIFESP.
-Temas possíveis: Clínica Médica, Cirurgia, Ginecologia e Obstetrícia, Pediatria, ou Preventiva.
+        const prompt = `Você é um tutor carinhoso e especialista focado na aprovação de médicos para a Residência Médica (ENARE, USP, UNIFESP).
+Sua missão é gerar UMA única notificação push curta para o celular do aluno.
 
-O formato deve ser um JSON estrito:
+Sorteie ALEATORIAMENTE um dos seguintes 4 temas para a notificação de hoje. Seja muito autêntico e direto ao ponto:
+1. Dica de Ouro (High-yield): Uma dica médica ultra específica e rápida que cai muito em provas (Ex: Pediatria, GO, Cirurgia).
+2. Motivação e Foco: Uma mensagem enérgica e encorajadora para o estudo ou para os plantões exaustivos.
+3. Qualidade de Vida & Estudo: Uma dica de como descansar melhor, lidar com burnout, alimentação ou gestão de tempo.
+4. Técnica de Memorização: Um macete, mnemônico ou técnica rápida para lembrar de algo denso.
+
+O formato deve ser um JSON estrito com dois campos limitados em caracteres para caber na notificação do celular:
 {
-  "title": "Título curto (ex: 🩺 Dica de Pediatria)",
-  "message": "Mensagem curta (máximo 120 caracteres, ex: A dose do paracetamol é X. Cuidado com hepatotoxicidade nas provas!)"
+  "title": "Título curto com emoji (ex: 🧠 Macete de GO, ou ⚡ Hora de Focar!)",
+  "message": "Mensagem curta, carinhosa mas muito direta (máximo 120 caracteres)."
 }`;
 
         const aiResponse = await openai.chat.completions.create({
