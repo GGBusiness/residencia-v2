@@ -8,5 +8,15 @@
             "main": true,
             "final-deploy": true
         }
-    }
+    },
+    "crons": [
+        {
+            "path": "/api/cron/daily-trivia",
+            "schedule": "0 11 * * *"
+        },
+        {
+            "path": "/api/cron/daily-trivia",
+            "schedule": "0 22 * * *"
+        }
+    ]
 }

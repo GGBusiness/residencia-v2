@@ -204,7 +204,38 @@ export default function ProfilePage() {
                         </div>
                     </div>
 
-                    {/* Botão Salvar */}
+                    {/* Seção 4: Notificações Inteligentes (OneSignal) */}
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between border-b pb-2">
+                            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                                <span className="text-lg">🔔</span> Notificações Inteligentes
+                            </h3>
+                            <Badge variant="secondary" className="text-xs bg-indigo-50 text-indigo-700 border-indigo-200">
+                                Novo
+                            </Badge>
+                        </div>
+
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div>
+                                <h4 className="font-semibold text-slate-800 text-sm mb-1">Dicas IA e Lembretes</h4>
+                                <p className="text-xs text-slate-500 max-w-md">
+                                    Receba 1 Dica Médica de Alto Rendimento gerada pela IA todos os dias às 11h e 22h, além de lembretes focados na sua aprovação.
+                                </p>
+                            </div>
+
+                            <Button
+                                type="button"
+                                onClick={async () => {
+                                    if (typeof window !== 'undefined' && window.OneSignal) {
+                                        await window.OneSignal.Slidedown.promptPush();
+                                    }
+                                }}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white shrink-0 shadow-sm"
+                            >
+                                Habilitar Notificações
+                            </Button>
+                        </div>
+                    </div>
                     <div className="pt-6 flex flex-col md:flex-row items-center gap-4 border-t border-slate-100">
                         <Button
                             onClick={handleSave}
