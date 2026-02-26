@@ -268,7 +268,11 @@ export async function getIngestedDocumentsAction() {
             LIMIT 50
         `);
 
-        return { success: true, data: rows };
+        // Also get the total count of documents
+        const { rows: totalResult } = await query('SELECT COUNT(*) as count FROM documents');
+        const total = parseInt(totalResult[0]?.count || '0', 10);
+
+        return { success: true, data: rows, total };
     } catch (error: any) {
         console.error('Error fetching ingested documents:', error);
         return { success: false, error: error.message };

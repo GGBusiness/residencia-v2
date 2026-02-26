@@ -16,6 +16,7 @@ export default function IntelligenceHub() {
 
     // Ingested documents state
     const [documents, setDocuments] = useState<any[]>([]);
+    const [totalDocs, setTotalDocs] = useState<number>(0);
     const [loadingDocs, setLoadingDocs] = useState(true);
 
     const fetchDocuments = useCallback(async () => {
@@ -23,6 +24,7 @@ export default function IntelligenceHub() {
         const result = await getIngestedDocumentsAction();
         if (result.success) {
             setDocuments(result.data || []);
+            setTotalDocs(result.total || 0);
         }
         setLoadingDocs(false);
     }, []);
@@ -403,9 +405,19 @@ export default function IntelligenceHub() {
 
                     {/* === INGESTED DOCUMENTS LIST === */}
                     <div className="mt-10 border-t pt-8">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                            <Database className="w-5 h-5 text-indigo-500" /> Histórico de Ingestão (Últimos 50)
-                        </h3>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                <Database className="w-5 h-5 text-indigo-500" /> Histórico de Ingestão
+                            </h3>
+                            {!loadingDocs && (
+                                <div className="inline-flex items-center gap-2 bg-indigo-50 border border-indigo-100 px-4 py-2 rounded-xl">
+                                    <span className="text-sm font-medium text-indigo-900">Total de PDFs Inseridos:</span>
+                                    <span className="text-lg font-bold text-indigo-600 bg-white px-3 py-0.5 rounded-lg shadow-sm border border-indigo-50">
+                                        {totalDocs}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
 
                         {loadingDocs ? (
                             <div className="flex justify-center p-8">
