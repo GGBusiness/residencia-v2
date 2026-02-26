@@ -141,20 +141,26 @@ export default function OnboardingPage() {
             const result = await completeOnboardingAction(userId, formData);
 
             if (result.success) {
-                // 3. GENERATE AI PLANNER IMMEDIATELY
-                console.log('🚀 [Onboarding] Triggering AI Planner generation...');
-                const plannerResult = await generateScheduleAction(userId, new Date().toLocaleDateString('en-CA'));
-
-                if (!plannerResult.success) {
-                    console.warn('⚠️ [Onboarding] Planner generation failed:', plannerResult.error);
-                    // We still redirect, but let the user know they might need to generate manually
-                    alert(`✅ Perfil salvo! Mas houve um pequeno problema ao criar seu cronograma: ${plannerResult.error}. Você pode tentar gerá-lo manualmente no Planner.`);
-                } else {
-                    console.log('✅ [Onboarding] Planner generated successfully!');
+                // CLEAR CACHE TO PREVENT ONBOARDING LOOPS!
+                if (typeof window !== 'undefined') {
+                    (window as any).__USER_DATA_CACHE__ = null;
                 }
 
-                // Redirecionar para dashboard
-                router.push('/app');
+                // 3. GENERATE AI PLANNER IMMEDIATELY
+                console.log('🚀 [Onboarding] Triggering AI Planner generation...');
+                try {
+                    const plannerResult = await generateScheduleAction(userId, new Date().toLocaleDateString('en-CA'));
+                    if (!plannerResult.success) {
+                        console.warn('⚠️ [Onboarding] Planner generation failed:', plannerResult.error);
+                    } else {
+                        console.log('✅ [Onboarding] Planner generated successfully!');
+                    }
+                } catch (e) {
+                    console.warn('Failed to generate AI planner:', e);
+                }
+
+                // Force a hard reload to ensure all server components and hooks fetch the new state
+                window.location.href = '/app';
             } else {
                 console.error('Onboarding failed:', result.error);
                 alert(`❌ Erro no salvamento: ${result.error || 'Erro desconhecido ao salvar.'}`);
