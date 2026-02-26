@@ -108,7 +108,7 @@ export function ChatWidget() {
     }, [isOpen]);
 
     return (
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end pointer-events-none font-sans antialiased">
+        <div className="fixed bottom-24 lg:bottom-6 right-4 sm:right-6 z-50 flex flex-col items-end pointer-events-none font-sans antialiased">
             {/* Toggle Button with Notification Badge */}
             <div className="pointer-events-auto relative group">
                 {/* Floating Help Bubble */}
