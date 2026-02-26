@@ -15,6 +15,8 @@ export default function AdminDashboard() {
     const [stats, setStats] = useState<any>(null);
     const [costs, setCosts] = useState<any>(null);
     const [infra, setInfra] = useState<any>(null);
+    const [pushHistory, setPushHistory] = useState<any>(null);
+    const [pushStats, setPushStats] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [refreshingInfra, setRefreshingInfra] = useState(false);
 
@@ -42,13 +44,24 @@ export default function AdminDashboard() {
     // Fetch costs when tab changes
     useEffect(() => {
         if (activeTab === 'finance') {
-            const fetchCosts = async () => {
-                const result = await getAdminCostsAction();
-                if (result.success) {
-                    setCosts(result.data);
+            const fetchFinanceData = async () => {
+                const costsResult = await getAdminCostsAction();
+                if (costsResult.success) {
+                    setCosts(costsResult.data);
+                }
+
+                const { getPushHistoryAction, getOneSignalStatsAction } = await import('@/app/actions/admin-actions');
+                const histRes = await getPushHistoryAction();
+                if (histRes.success) {
+                    setPushHistory(histRes.data);
+                }
+
+                const onesignalRes = await getOneSignalStatsAction();
+                if (onesignalRes.success) {
+                    setPushStats(onesignalRes.data);
                 }
             };
-            fetchCosts();
+            fetchFinanceData();
             fetchInfraData();
         }
     }, [activeTab]);
@@ -327,7 +340,7 @@ export default function AdminDashboard() {
                             <h3 className="text-lg font-semibold mb-4 text-slate-800 flex items-center gap-2">
                                 <span className="text-xl">📢</span> Transmissão Manual (Push)
                             </h3>
-                            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-6">
+                            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-6 mb-8">
                                 <p className="text-sm text-indigo-800 mb-4">
                                     Envie um alerta instantâneo para o celular de todos os alunos que ativaram as notificações.
                                 </p>
@@ -338,6 +351,10 @@ export default function AdminDashboard() {
                                     const res = await sendManualPushNotificationAction(title, message);
                                     if (res.success) {
                                         alert('✅ ' + res.message);
+                                        // Auto-refresh the history after sending
+                                        const { getPushHistoryAction } = await import('@/app/actions/admin-actions');
+                                        const histRes = await getPushHistoryAction();
+                                        if (histRes.success) setPushHistory(histRes.data);
                                     } else {
                                         alert('❌ Erro: ' + res.error);
                                     }
@@ -363,6 +380,83 @@ export default function AdminDashboard() {
                                         Enviar Transmissão Global
                                     </Button>
                                 </form>
+                            </div>
+
+                            {/* PUSH NOTIFICATIONS HISTORY FEED */}
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                                    <span className="text-xl">🕰️</span> Histórico de Disparos
+                                </h3>
+                                {/* Estatísticas Rápidas do OneSignal */}
+                                {pushStats && (
+                                    <div className="flex gap-4 text-sm bg-slate-50 px-4 py-2 rounded-lg border">
+                                        <div className="flex flex-col">
+                                            <span className="text-slate-500 text-xs">Total Enviados</span>
+                                            <span className="font-bold text-slate-700">{pushStats.total_sent} alertas</span>
+                                        </div>
+                                        <div className="w-px bg-slate-200"></div>
+                                        <div className="flex flex-col">
+                                            <span className="text-slate-500 text-xs">Assinantes Ativos</span>
+                                            <span className="font-bold text-indigo-600 truncate max-w-[150px]" title={pushStats.subscribers}>{pushStats.subscribers}</span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="overflow-x-auto border rounded-xl bg-white shadow-sm">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-slate-50 text-slate-500 font-medium border-b">
+                                        <tr>
+                                            <th className="p-3">Data/Hora</th>
+                                            <th className="p-3">Título</th>
+                                            <th className="p-3">Mensagem</th>
+                                            <th className="p-3 text-right">Ação</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y">
+                                        {pushHistory?.map((log: any, i: number) => (
+                                            <tr key={log.id || i} className="hover:bg-slate-50">
+                                                <td className="p-3 text-slate-500 whitespace-nowrap">
+                                                    {new Date(log.created_at).toLocaleString()}
+                                                </td>
+                                                <td className="p-3 font-medium text-slate-700">
+                                                    {log.title}
+                                                </td>
+                                                <td className="p-3 text-slate-600 max-w-sm truncate" title={log.message}>
+                                                    {log.message}
+                                                </td>
+                                                <td className="p-3 text-right">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                                                        onClick={async () => {
+                                                            if (!confirm('Deseja REENVIAR esta notificação globalmente agora?')) return;
+                                                            const { sendManualPushNotificationAction, getPushHistoryAction } = await import('@/app/actions/admin-actions');
+                                                            const res = await sendManualPushNotificationAction(log.title, log.message);
+                                                            if (res.success) {
+                                                                alert('✅ ' + res.message);
+                                                                const histRes = await getPushHistoryAction();
+                                                                if (histRes.success) setPushHistory(histRes.data);
+                                                            } else {
+                                                                alert('❌ Erro: ' + res.error);
+                                                            }
+                                                        }}
+                                                    >
+                                                        Reenviar
+                                                    </Button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {(!pushHistory || pushHistory.length === 0) && (
+                                            <tr>
+                                                <td colSpan={4} className="p-8 text-center text-slate-400">
+                                                    Nenhum histórico de notificação encontrado.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
 
