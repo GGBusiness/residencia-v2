@@ -140,7 +140,7 @@ export default function AdminDashboard() {
                                     <h3 className="text-2xl font-bold">
                                         {loading ? '...' : stats?.content?.totalQuestions || 0}
                                     </h3>
-                                    {!loading && stats?.content?.aiQuestions > 0 && (
+                                    {!loading && stats?.content?.aiQuestions !== undefined && (
                                         <p className="text-xs text-purple-500 mt-1">
                                             🤖 {stats.content.aiQuestions} geradas por IA
                                         </p>

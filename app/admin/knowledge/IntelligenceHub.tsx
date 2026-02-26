@@ -6,13 +6,30 @@ import { Button } from '@/components/ui/button';
 import { FileText, Upload, BrainCircuit, CheckCircle, AlertCircle, Loader2, Sparkles, ShieldCheck, Database, X } from 'lucide-react';
 import { getPresignedUrlAction } from '@/app/actions/storage-actions';
 import { ingestUnifiedAction } from '@/app/actions/admin-hybrid-ingest';
-import { verifyDbSyncAction } from '@/app/actions/admin-actions';
+import { verifyDbSyncAction, getIngestedDocumentsAction } from '@/app/actions/admin-actions';
 
 export default function IntelligenceHub() {
     const [uploading, setUploading] = useState(false);
     const [progress, setProgress] = useState(0);
     const [status, setStatus] = useState<{ type: 'idle' | 'success' | 'error' | 'info', msg: string }>({ type: 'idle', msg: '' });
     const [logs, setLogs] = useState<string[]>([]);
+
+    // Ingested documents state
+    const [documents, setDocuments] = useState<any[]>([]);
+    const [loadingDocs, setLoadingDocs] = useState(true);
+
+    const fetchDocuments = useCallback(async () => {
+        setLoadingDocs(true);
+        const result = await getIngestedDocumentsAction();
+        if (result.success) {
+            setDocuments(result.data || []);
+        }
+        setLoadingDocs(false);
+    }, []);
+
+    useEffect(() => {
+        fetchDocuments();
+    }, [fetchDocuments]);
 
     // Pipeline report after completion
     const [pipelineReport, setPipelineReport] = useState<{
@@ -133,7 +150,7 @@ export default function IntelligenceHub() {
 
         // Final DB Sync verify
         setStatus({ type: 'info', msg: '🔄 Verificando integridade do banco de dados...' });
-        let dbSyncResult = null;
+        let dbSyncResult: any = null;
         try {
             dbSyncResult = await verifyDbSyncAction();
             if (dbSyncResult.success) {
@@ -383,6 +400,54 @@ export default function IntelligenceHub() {
                             </div>
                         </div>
                     )}
+
+                    {/* === INGESTED DOCUMENTS LIST === */}
+                    <div className="mt-10 border-t pt-8">
+                        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            <Database className="w-5 h-5 text-indigo-500" /> Histórico de Ingestão (Últimos 50)
+                        </h3>
+
+                        {loadingDocs ? (
+                            <div className="flex justify-center p-8">
+                                <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+                            </div>
+                        ) : documents.length === 0 ? (
+                            <p className="text-center text-slate-500 p-8 border border-dashed rounded-xl">Nenhum documento ingerido ainda.</p>
+                        ) : (
+                            <div className="overflow-x-auto rounded-xl border border-slate-200">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-slate-50 border-b">
+                                        <tr>
+                                            <th className="p-3 text-slate-600 font-semibold">Documento</th>
+                                            <th className="p-3 text-slate-600 font-semibold">Instituição/Ano</th>
+                                            <th className="p-3 text-slate-600 font-semibold text-center">Questões Extraídas</th>
+                                            <th className="p-3 text-slate-600 font-semibold text-right">Data Ingestão</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {documents.map((doc) => (
+                                            <tr key={doc.id} className="hover:bg-slate-50 transition-colors">
+                                                <td className="p-3 text-slate-800 font-medium max-w-[200px] sm:max-w-xs md:max-w-md truncate" title={doc.title}>
+                                                    {doc.title}
+                                                </td>
+                                                <td className="p-3 text-slate-500 whitespace-nowrap">
+                                                    {doc.institution || '—'} {doc.year ? `- ${doc.year}` : ''}
+                                                </td>
+                                                <td className="p-3 text-center">
+                                                    <span className="bg-indigo-100 text-indigo-700 font-bold px-2.5 py-1 rounded-full text-xs">
+                                                        {doc.question_count}
+                                                    </span>
+                                                </td>
+                                                <td className="p-3 text-right text-slate-400 text-xs whitespace-nowrap">
+                                                    {new Date(doc.created_at).toLocaleDateString('pt-BR')}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
 
                 </CardBody>
             </Card>

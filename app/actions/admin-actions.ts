@@ -90,9 +90,9 @@ export async function getAdminStatsAction() {
 
         // 9. Top Specialties from profiles target
         const { rows: topSpecialties } = await query(`
-             SELECT target_specialty as specialty, COUNT(*) as count
+             SELECT goal as specialty, COUNT(*) as count
              FROM profiles
-             WHERE target_specialty IS NOT NULL
+             WHERE goal IS NOT NULL
              GROUP BY 1
              ORDER BY 2 DESC
              LIMIT 5
@@ -255,3 +255,22 @@ export async function verifyDbSyncAction() {
     }
 }
 
+// === FETCH INGESTED DOCUMENTS ===
+export async function getIngestedDocumentsAction() {
+    try {
+        const { rows } = await query(`
+            SELECT d.id, d.title, d.institution, d.year, d.created_at, 
+                   COUNT(q.id) as question_count
+            FROM documents d
+            LEFT JOIN questions q ON q.document_id = d.id
+            GROUP BY d.id
+            ORDER BY d.created_at DESC
+            LIMIT 50
+        `);
+
+        return { success: true, data: rows };
+    } catch (error: any) {
+        console.error('Error fetching ingested documents:', error);
+        return { success: false, error: error.message };
+    }
+}
