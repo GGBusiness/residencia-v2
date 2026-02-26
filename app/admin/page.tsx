@@ -14,7 +14,9 @@ export default function AdminDashboard() {
     const [activeTab, setActiveTab] = useState<'overview' | 'intelligence' | 'finance'>('overview');
     const [stats, setStats] = useState<any>(null);
     const [costs, setCosts] = useState<any>(null);
+    const [infra, setInfra] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [refreshingInfra, setRefreshingInfra] = useState(false);
 
     useEffect(() => {
         const fetchStats = async () => {
@@ -27,6 +29,16 @@ export default function AdminDashboard() {
         fetchStats();
     }, []);
 
+    const fetchInfraData = async () => {
+        setRefreshingInfra(true);
+        const { getInfrastructureMetricsAction } = await import('@/app/actions/admin-actions');
+        const result = await getInfrastructureMetricsAction();
+        if (result.success) {
+            setInfra(result.data);
+        }
+        setRefreshingInfra(false);
+    };
+
     // Fetch costs when tab changes
     useEffect(() => {
         if (activeTab === 'finance') {
@@ -37,6 +49,7 @@ export default function AdminDashboard() {
                 }
             };
             fetchCosts();
+            fetchInfraData();
         }
     }, [activeTab]);
 
@@ -250,17 +263,64 @@ export default function AdminDashboard() {
                         </Button>
                     </CardHeader>
                     <CardBody className="p-6 space-y-6">
-                        <div className="flex items-center justify-between p-6 bg-emerald-50 rounded-xl border border-emerald-100">
-                            <div>
-                                <p className="text-sm text-emerald-600 font-medium uppercase tracking-wider">Custo Total (Estimado)</p>
-                                <h3 className="text-4xl font-bold text-emerald-900">
-                                    ${costs?.totalCost?.toFixed(4) || '0.0000'}
-                                </h3>
+                        {/* INFRASTRUCTURE METRICS ROW */}
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-lg font-semibold text-slate-800">Infraestrutura & APIs em Tempo Real</h3>
+                            <Button variant="outline" size="sm" onClick={fetchInfraData} disabled={refreshingInfra}>
+                                {refreshingInfra ? 'Atualizando...' : '🔄 Atualizar Agora'}
+                            </Button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                            {/* OpenAI */}
+                            <div className={`flex flex-col p-6 rounded-xl border shadow-sm relative overflow-hidden ${infra?.openai_status === 'quota_exceeded' ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'}`}>
+                                <div className="absolute top-0 right-0 p-4 opacity-10">
+                                    <BrainCircuit className={`w-16 h-16 ${infra?.openai_status === 'quota_exceeded' ? 'text-red-900' : 'text-slate-900'}`} />
+                                </div>
+                                <div className="z-10">
+                                    <p className={`text-sm font-medium uppercase tracking-wider mb-1 ${infra?.openai_status === 'quota_exceeded' ? 'text-red-700' : 'text-slate-500'}`}>OpenAI (IA API)</p>
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div className={`w-3 h-3 rounded-full ${infra?.openai_status === 'active' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : infra?.openai_status === 'quota_exceeded' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' : 'bg-amber-500 animate-pulse'}`}></div>
+                                        <span className={`font-bold ${infra?.openai_status === 'active' ? 'text-emerald-700' : infra?.openai_status === 'quota_exceeded' ? 'text-red-700' : 'text-amber-700'}`}>
+                                            {infra?.openai_status === 'active' ? 'Sistema Operacional' : infra?.openai_status === 'quota_exceeded' ? 'Sem Saldo (Erro 429)' : 'Verificando...'}
+                                        </span>
+                                    </div>
+                                    <p className={`text-xs mt-2 ${infra?.openai_status === 'quota_exceeded' ? 'text-red-600 font-medium' : 'text-slate-400'}`}>
+                                        Gasto Acumulado: <b>${infra?.openai_spent?.toFixed(4) || '0.0000'}</b>
+                                    </p>
+                                </div>
                             </div>
-                            <div className="p-4 bg-white rounded-full shadow-sm">
-                                <DollarSign className="w-8 h-8 text-emerald-500" />
+
+                            {/* DigitalOcean - DB */}
+                            <div className="flex flex-col p-6 bg-white rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-4 opacity-5">
+                                    <Database className="w-24 h-24 text-blue-900" />
+                                </div>
+                                <div className="z-10">
+                                    <p className="text-sm text-slate-500 font-medium uppercase tracking-wider mb-1">Cérebro App (Postgres)</p>
+                                    <h3 className="text-3xl font-bold text-slate-800">
+                                        {infra?.database_size || '0 MB'}
+                                    </h3>
+                                    <p className="text-xs text-slate-400 mt-2">Uso bruto do servidor (DigitalOcean)</p>
+                                </div>
+                            </div>
+
+                            {/* Supabase Storage */}
+                            <div className="flex flex-col p-6 bg-white rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-4 opacity-5">
+                                    <Upload className="w-24 h-24 text-emerald-900" />
+                                </div>
+                                <div className="z-10">
+                                    <p className="text-sm text-slate-500 font-medium uppercase tracking-wider mb-1">Storage Nuvem (Supabase)</p>
+                                    <h3 className="text-3xl font-bold text-slate-800">
+                                        {infra?.storage_size || '0.00 MB'}
+                                    </h3>
+                                    <p className="text-xs text-slate-400 mt-2">Tamanho total dos arquivos sincronizados</p>
+                                </div>
                             </div>
                         </div>
+
+                        <div className="h-px bg-slate-200 w-full my-6"></div>
 
                         <div>
                             <h3 className="text-lg font-semibold mb-4 text-slate-800">Histórico de Chamadas</h3>

@@ -278,3 +278,61 @@ export async function getIngestedDocumentsAction() {
         return { success: false, error: error.message };
     }
 }
+
+// === REAL-TIME INFRASTRUCTURE METRICS ===
+export async function getInfrastructureMetricsAction() {
+    try {
+        const metrics = {
+            database_size: '0 MB',
+            storage_size: '0 MB',
+            openai_status: 'checking',
+            openai_error: '',
+            openai_spent: 0
+        };
+
+        // 1. DigitalOcean Postgres Size
+        const { rows: dbRows } = await query('SELECT pg_size_pretty(pg_database_size(current_database())) as size').catch(() => ({ rows: [] }));
+        if (dbRows.length > 0) metrics.database_size = dbRows[0].size;
+
+        // 2. Supabase Storage Size (Avatars)
+        try {
+            const { createClient } = await import('@supabase/supabase-js');
+            const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+            const { data: files } = await supabase.storage.from('avatars').list();
+            if (files && files.length > 0) {
+                const totalBytes = files.reduce((acc, f) => acc + (f.metadata?.size || 0), 0);
+                metrics.storage_size = (totalBytes / (1024 * 1024)).toFixed(2) + ' MB';
+            }
+        } catch (storageErr) {
+            console.error('Storage check err:', storageErr);
+        }
+
+        // 3. OpenAI Quota Test
+        try {
+            const OpenAI = (await import('openai')).default;
+            const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+            await openai.chat.completions.create({
+                model: 'gpt-4o-mini',
+                messages: [{ role: 'user', content: 'ping' }],
+                max_tokens: 1
+            });
+            metrics.openai_status = 'active';
+        } catch (openAiErr: any) {
+            if (openAiErr.status === 429) {
+                metrics.openai_status = 'quota_exceeded';
+                metrics.openai_error = 'Saldo Insuficiente (Error 429)';
+            } else {
+                metrics.openai_status = 'error';
+                metrics.openai_error = openAiErr.message;
+            }
+        }
+
+        // 4. OpenAI Total Tracked Spent
+        const { rows: spentRows } = await query('SELECT SUM(cost_usd) as total FROM api_usage_logs').catch(() => ({ rows: [] }));
+        if (spentRows.length > 0) metrics.openai_spent = parseFloat(spentRows[0].total) || 0;
+
+        return { success: true, data: metrics };
+    } catch (err: any) {
+        return { success: false, error: err.message };
+    }
+}
