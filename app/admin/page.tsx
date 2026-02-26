@@ -322,6 +322,52 @@ export default function AdminDashboard() {
 
                         <div className="h-px bg-slate-200 w-full my-6"></div>
 
+                        {/* MANUAL PUSH SENDER */}
+                        <div>
+                            <h3 className="text-lg font-semibold mb-4 text-slate-800 flex items-center gap-2">
+                                <span className="text-xl">📢</span> Transmissão Manual (Push)
+                            </h3>
+                            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-6">
+                                <p className="text-sm text-indigo-800 mb-4">
+                                    Envie um alerta instantâneo para o celular de todos os alunos que ativaram as notificações.
+                                </p>
+                                <form action={async (formData) => {
+                                    const title = formData.get('title') as string;
+                                    const message = formData.get('message') as string;
+                                    const { sendManualPushNotificationAction } = await import('@/app/actions/admin-actions');
+                                    const res = await sendManualPushNotificationAction(title, message);
+                                    if (res.success) {
+                                        alert('✅ ' + res.message);
+                                    } else {
+                                        alert('❌ Erro: ' + res.error);
+                                    }
+                                }} className="space-y-4">
+                                    <div>
+                                        <input
+                                            name="title"
+                                            required
+                                            placeholder="Título (ex: 📚 Novo Simulado Disponível!)"
+                                            className="w-full p-3 rounded-lg border border-indigo-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <textarea
+                                            name="message"
+                                            required
+                                            placeholder="Mensagem (ex: As provas da USP 2024 já estão na plataforma. Venha conferir!)"
+                                            rows={2}
+                                            className="w-full p-3 rounded-lg border border-indigo-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                                        />
+                                    </div>
+                                    <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">
+                                        Enviar Transmissão Global
+                                    </Button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <div className="h-px bg-slate-200 w-full my-6"></div>
+
                         <div>
                             <h3 className="text-lg font-semibold mb-4 text-slate-800">Histórico de Chamadas</h3>
                             <div className="overflow-x-auto border rounded-xl">

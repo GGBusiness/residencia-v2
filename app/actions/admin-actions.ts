@@ -336,3 +336,46 @@ export async function getInfrastructureMetricsAction() {
         return { success: false, error: err.message };
     }
 }
+
+// === MANUAL NOTIFICATION SPENDER ===
+export async function sendManualPushNotificationAction(title: string, message: string) {
+    try {
+        const onesignalUrl = 'https://onesignal.com/api/v1/notifications';
+
+        const payload = {
+            app_id: process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID,
+            included_segments: ['Subscribed Users'], // Manda para todos os alunos que aceitaram pushes
+            contents: {
+                en: message,
+                pt: message
+            },
+            headings: {
+                en: title,
+                pt: title
+            }
+        };
+
+        const pushResponse = await fetch(onesignalUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Basic ${process.env.ONESIGNAL_REST_API_KEY}`
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const pushResult = await pushResponse.json();
+
+        if (pushResult.errors) {
+            throw new Error(JSON.stringify(pushResult.errors));
+        }
+
+        return {
+            success: true,
+            message: 'Notificação enviada com sucesso para os alunos!'
+        };
+    } catch (error: any) {
+        console.error('Manual push error:', error);
+        return { success: false, error: error.message };
+    }
+}
