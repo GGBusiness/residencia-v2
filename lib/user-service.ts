@@ -6,6 +6,7 @@ export interface User {
     id: string;
     email: string;
     name: string;
+    avatar_url?: string;
     onboarding_completed: boolean;
     created_at: string;
     last_login: string;
@@ -61,17 +62,18 @@ class UserService {
     }
 
     // Sincronizar usuário (UPSERT) - Garante que existe na tabela public.users
-    async syncUser(id: string, email: string, name: string): Promise<User | null> {
+    async syncUser(id: string, email: string, name: string, avatar_url?: string): Promise<User | null> {
         try {
             const { rows } = await query(`
-                INSERT INTO users (id, email, name, last_login)
-                VALUES ($1, $2, $3, NOW())
+                INSERT INTO users (id, email, name, avatar_url, last_login)
+                VALUES ($1, $2, $3, $4, NOW())
                 ON CONFLICT (id) DO UPDATE 
                 SET email = EXCLUDED.email,
                     name = EXCLUDED.name,
+                    avatar_url = COALESCE(EXCLUDED.avatar_url, users.avatar_url),
                     last_login = NOW()
                 RETURNING *
-            `, [id, email, name]);
+            `, [id, email, name, avatar_url || null]);
             return rows[0];
         } catch (error) {
             console.error('Error syncing user:', error);

@@ -81,7 +81,9 @@ export default function AppRootLayout({
                         <div className="p-4 flex items-center gap-3">
                             <div className="relative">
                                 <div className="w-12 h-12 rounded-xl bg-slate-100 group-hover:bg-white border-2 border-white shadow-sm flex items-center justify-center text-indigo-700 font-bold shrink-0 overflow-hidden">
-                                    {user?.name ? (
+                                    {user?.avatar_url ? (
+                                        <img src={user.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+                                    ) : user?.name ? (
                                         <span className="text-lg">{user.name.substring(0, 2).toUpperCase()}</span>
                                     ) : (
                                         <span className="text-lg">DR</span>
@@ -147,7 +149,9 @@ export default function AppRootLayout({
                             }`}
                     >
                         <div className={`w-6 h-6 rounded-full flex items-center justify-center overflow-hidden border-2 transition-all duration-300 ${pathname === '/app/perfil' ? 'border-indigo-600 bg-indigo-50 shadow-sm' : 'border-slate-300 bg-slate-100'}`}>
-                            {user?.name ? (
+                            {user?.avatar_url ? (
+                                <img src={user.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+                            ) : user?.name ? (
                                 <span className={`text-[9px] font-bold ${pathname === '/app/perfil' ? 'text-indigo-700' : 'text-slate-500'}`}>{user.name.substring(0, 2).toUpperCase()}</span>
                             ) : (
                                 <span className={`text-[9px] font-bold ${pathname === '/app/perfil' ? 'text-indigo-700' : 'text-slate-500'}`}>DR</span>

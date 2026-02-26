@@ -63,7 +63,7 @@ export async function getUserGoalsAction(userId: string) {
     }
 }
 
-export async function updateUserDataAction(userId: string, data: { name?: string }) {
+export async function updateUserDataAction(userId: string, data: { name?: string; avatar_url?: string }) {
     try {
         await userService.updateUser(userId, data);
         return { success: true };
@@ -72,10 +72,10 @@ export async function updateUserDataAction(userId: string, data: { name?: string
     }
 }
 
-export async function syncUserAction(userId: string, email: string, name: string) {
+export async function syncUserAction(userId: string, email: string, name: string, avatar_url?: string) {
     try {
         console.log(`[Action] Syncing user: ${userId}, ${email}, ${name}`);
-        const user = await userService.syncUser(userId, email, name);
+        const user = await userService.syncUser(userId, email, name, avatar_url);
         return { success: true, data: user };
     } catch (error) {
         console.error('Error syncing user:', error);

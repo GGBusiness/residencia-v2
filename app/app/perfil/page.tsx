@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { User, Clock, Target, Save, CheckCircle2 } from 'lucide-react';
 import { updateUserDataAction, updateProfileSettingsAction, updateUserGoalsAction } from '@/app/actions/user-actions';
 
+import { AvatarUpload } from '@/components/ui/AvatarUpload';
+
 export default function ProfilePage() {
     const { user, profile, goals, refreshUser } = useUser();
     const [saving, setSaving] = useState(false);
@@ -42,7 +44,7 @@ export default function ProfilePage() {
         try {
             // 1. Sync User Name (UPSERT)
             const { syncUserAction } = await import('@/app/actions/user-actions');
-            await syncUserAction(user.id, user.email, formData.name);
+            await syncUserAction(user.id, user.email, formData.name, user.avatar_url);
 
             // 2. Update Profile (Institution, Specialty, Routine)
             await updateProfileSettingsAction(user.id, {
@@ -72,14 +74,12 @@ export default function ProfilePage() {
     return (
         <div className="max-w-4xl mx-auto space-y-8">
             {/* Header Simplified */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex items-center gap-6">
-                <div className="w-20 h-20 rounded-full bg-indigo-100 flex items-center justify-center text-2xl font-bold text-indigo-700">
-                    {user?.name ? user.name.substring(0, 2).toUpperCase() : 'DR'}
-                </div>
-                <div>
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col md:flex-row items-center gap-6">
+                <AvatarUpload />
+                <div className="text-center md:text-left">
                     <h1 className="text-2xl font-bold text-gray-900">{user?.name || 'Doutor(a)'}</h1>
                     <p className="text-gray-500">{user?.email}</p>
-                    <div className="flex gap-2 mt-2">
+                    <div className="flex justify-center md:justify-start gap-2 mt-3">
                         <Badge variant="success">Conta Ativa</Badge>
                         <Badge variant="info">Resident PRO</Badge>
                     </div>
