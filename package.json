@@ -8,7 +8,8 @@
         "start": "next start",
         "lint": "next lint",
         "import-questions": "tsx scripts/import-questions.ts",
-        "import-claude": "tsx scripts/import-with-claude.ts"
+        "import-claude": "tsx scripts/import-with-claude.ts",
+        "admin": "tsx scripts/admin-panel.ts"
     },
     "dependencies": {
         "@aws-sdk/client-s3": "^3.986.0",
