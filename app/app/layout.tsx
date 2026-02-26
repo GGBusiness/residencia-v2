@@ -1,8 +1,10 @@
 'use client';
 
+import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Home, Sparkles, Calendar, Target, History, Repeat, Database } from 'lucide-react';
 import { ChatWidget } from '@/components/ai/ChatWidget';
+import { PWAInstallPrompt } from '@/components/ui/PWAInstallPrompt';
 import { useUser } from '@/hooks/useUser';
 
 export default function AppRootLayout({
@@ -24,9 +26,13 @@ export default function AppRootLayout({
         { id: 'historico', label: 'Histórico', icon: History, path: '/app/historico' },
     ];
 
-    const { user } = useUser();
+    const { user, isOnboarded, loading } = useUser();
 
-    return (
+    useEffect(() => {
+        if (!loading && user && !isOnboarded) {
+            router.push('/onboarding');
+        }
+    }, [user, isOnboarded, loading, router]); return (
         <div className="flex min-h-screen bg-slate-50">
             {/* Sidebar Moderno */}
             <aside className="w-72 bg-white/80 backdrop-blur-xl border-r border-slate-200 flex-shrink-0 hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 z-30 shadow-soft">
@@ -152,6 +158,7 @@ export default function AppRootLayout({
                     {children}
                 </div>
                 <ChatWidget />
+                <PWAInstallPrompt />
             </main>
         </div>
     );

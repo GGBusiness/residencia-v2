@@ -72,6 +72,19 @@ export default function OnboardingPage() {
                 router.push('/auth/login');
                 return;
             }
+
+            // Check if already onboarded to prevent loops
+            const { data: userRecord } = await supabase
+                .from('users')
+                .select('onboarding_completed')
+                .eq('id', user.id)
+                .single();
+
+            if (userRecord?.onboarding_completed) {
+                router.push('/app');
+                return;
+            }
+
             setUserId(user.id);
 
             // Auto-fill Name and Email from Auth

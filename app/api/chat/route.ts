@@ -123,9 +123,9 @@ export async function POST(req: Request) {
             stream: true,
         });
 
-        // 6. Stream response using native ReadableStream (compatible with ai/react useChat)
+        // 6. Stream response as plain text (required by ai/react v3 useChat)
+        // useChat expects the response body to be a plain text stream, NOT SSE
         let fullCompletion = '';
-        let tokensIn = 0;
         let tokensOut = 0;
 
         const encoder = new TextEncoder();
@@ -137,16 +137,14 @@ export async function POST(req: Request) {
                         if (content) {
                             fullCompletion += content;
                             tokensOut++;
-                            // SSE format expected by useChat from ai/react
-                            const sseMessage = `data: ${JSON.stringify({ id: chunk.id, object: 'chat.completion.chunk', choices: [{ delta: { content }, index: 0 }] })}\n\n`;
-                            controller.enqueue(encoder.encode(sseMessage));
+                            // Plain text chunks — this is what useChat expects
+                            controller.enqueue(encoder.encode(content));
                         }
                     }
-                    controller.enqueue(encoder.encode('data: [DONE]\n\n'));
                     controller.close();
 
-                    // Background: Save memory + log API cost
-                    tokensIn = Math.round(finalSystemInstruction.length / 4);
+                    // Background: Log API cost
+                    const tokensIn = Math.round(finalSystemInstruction.length / 4);
                     try {
                         await query(`
                             INSERT INTO api_usage_logs (provider, model, tokens_input, tokens_output, cost_usd, action, created_at)
@@ -156,7 +154,7 @@ export async function POST(req: Request) {
                             GPT_MODEL,
                             tokensIn,
                             tokensOut,
-                            ((tokensIn * 0.000005) + (tokensOut * 0.000015)).toFixed(6), // GPT-4o pricing approx
+                            ((tokensIn * 0.000005) + (tokensOut * 0.000015)).toFixed(6),
                             'chat'
                         ]);
                         console.log(`💰 API cost logged: ~$${((tokensIn * 0.000005) + (tokensOut * 0.000015)).toFixed(6)}`);
@@ -173,8 +171,7 @@ export async function POST(req: Request) {
                     });
                 } catch (streamErr) {
                     console.error('❌ Stream error:', streamErr);
-                    const errorMsg = `data: ${JSON.stringify({ error: 'Stream interrupted' })}\n\n`;
-                    controller.enqueue(encoder.encode(errorMsg));
+                    controller.enqueue(encoder.encode('Desculpe, ocorreu um erro ao processar sua resposta. Tente novamente.'));
                     controller.close();
                 }
             }
@@ -182,9 +179,7 @@ export async function POST(req: Request) {
 
         return new Response(readableStream, {
             headers: {
-                'Content-Type': 'text/event-stream',
-                'Cache-Control': 'no-cache',
-                'Connection': 'keep-alive',
+                'Content-Type': 'text/plain; charset=utf-8',
             },
         });
 

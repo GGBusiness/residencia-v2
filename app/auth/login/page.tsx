@@ -30,18 +30,18 @@ export default function LoginPage() {
 
             if (loginError) throw loginError;
 
-            // Verificar se já fez onboarding
-            const { data: preferences } = await supabase
-                .from('user_preferences')
-                .select('*')
-                .eq('user_id', data.user.id)
+            // Verificar se já fez onboarding na tabela users
+            const { data: userRecord } = await supabase
+                .from('users')
+                .select('onboarding_completed')
+                .eq('id', data.user.id)
                 .single();
 
-            // Redirecionar para onboarding se ainda não fez, senao para home
-            if (!preferences) {
+            // Redirecionar para onboarding se ainda não fez, senao para dashboard
+            if (!userRecord || !userRecord.onboarding_completed) {
                 router.push('/onboarding');
             } else {
-                router.push('/app/home');
+                router.push('/app');
             }
         } catch (err: any) {
             setError(err.message || 'Email ou senha incorretos');
