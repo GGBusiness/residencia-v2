@@ -30,7 +30,7 @@ export async function setupAdminSchemaAction() {
 
 export async function getAdminStatsAction() {
     try {
-        // 1. Basic Counts — ALL from DigitalOcean (profiles table, not users which is in Supabase Auth)
+        // 1. Basic Counts — ALL from DigitalOcean
         const { rows: [{ count: userCount }] } = await query(
             "SELECT COUNT(*) as count FROM profiles"
         ).catch(() => ({ rows: [{ count: 0 }] }));
@@ -88,10 +88,11 @@ export async function getAdminStatsAction() {
             LIMIT 5
         `).catch(() => ({ rows: [] }));
 
-        // 9. Top Specialties from user goals
+        // 9. Top Specialties from profiles target
         const { rows: topSpecialties } = await query(`
-             SELECT specialty, COUNT(*) as count
-             FROM user_goals
+             SELECT target_specialty as specialty, COUNT(*) as count
+             FROM profiles
+             WHERE target_specialty IS NOT NULL
              GROUP BY 1
              ORDER BY 2 DESC
              LIMIT 5
@@ -100,13 +101,13 @@ export async function getAdminStatsAction() {
         return {
             success: true,
             data: {
-                users: { total: parseInt(userCount), newUsersToday: parseInt(newUsersToday) },
-                activity: { attemptsToday: parseInt(attemptsToday) },
+                users: { total: parseInt(userCount) || 0, newToday: parseInt(newUsersToday) || 0 }, // FIXED: changed newUsersToday to newToday to match frontend (stats?.users?.newToday)
+                activity: { attemptsToday: parseInt(attemptsToday) || 0 },
                 content: {
-                    totalQuestions: parseInt(totalQuestions),
-                    aiQuestions: parseInt(aiQuestionsCount),
-                    totalDocuments: parseInt(totalDocuments),
-                    totalEmbeddings: parseInt(totalEmbeddings)
+                    totalQuestions: parseInt(totalQuestions) || 0,
+                    aiQuestions: parseInt(aiQuestionsCount) || 0,
+                    totalDocuments: parseInt(totalDocuments) || 0,
+                    totalEmbeddings: parseInt(totalEmbeddings) || 0
                 },
                 analytics: {
                     topInstitutions,
